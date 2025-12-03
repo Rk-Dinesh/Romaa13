@@ -14,15 +14,13 @@ const ViewWOIssuance = () => {
       ? {
           0: [
             {
-              label: "Contractor",
-              value: rowData.contract,
-              key: "contract",
+              label: "Request ID",
+              value: rowData.requestId,
+              key: "requestId",
             },
-            { label: "Unit Cost", value: rowData.unitcost, key: "unitcost" },
-            { label: "Units", value: rowData.unit, key: "unit" },
+            { label: "Title", value: rowData.title, key: "title" },
+            { label: "Description", value: rowData.description, key: "description" },
             { label: "Date", value: rowData.date, key: "date" },
-            { label: "Total", value: rowData.total, key: "total" },
-            { label: "Level", value: rowData.level, key: "level" },
           ],
         }
       : {}

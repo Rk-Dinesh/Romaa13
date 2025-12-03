@@ -62,6 +62,9 @@ const PurchaseEnquiry = () => {
         }
       );
 
+      console.log(purchaseRequestId,action,quotationId);
+      
+
       // update UI
       setData((prev) =>
         prev.map((e) =>

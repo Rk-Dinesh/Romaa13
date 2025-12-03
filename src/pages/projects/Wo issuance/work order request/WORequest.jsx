@@ -54,7 +54,7 @@ const WORequest = () => {
     try {
       await axios.put(
         `${API}/workorderrequest/api/workorder-requests/${requestId}/approve-vendor`,
-        { quotationId, action }
+        { quotationId, status:action }
       );
 
       toast.success(`Quotation ${action.toLowerCase()} successfully!`);
