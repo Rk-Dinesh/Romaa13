@@ -25,7 +25,7 @@ const TenderColumns = [
     key: "tender_start_date",
     render: (item) => item.tender_start_date ? new Date(item.tender_start_date).toLocaleDateString() : "-"
   },
-  { label: "Budget", key: "tender_value" },
+  { label: "Budget", key: "tender_value" , formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
   {
     label: "Status",
     key: "tender_status",

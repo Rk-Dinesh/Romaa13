@@ -5,11 +5,10 @@ import { useParams } from "react-router-dom";
 import { API } from "../../../../../../constant";
 import { toast } from "react-toastify";
 
-const sampleCSv = `description,unit,quantity,rate,amount,number,length,breath,depth,contents
-"Abstract description 1",m,10,50,500,,,,,
-"Abstract description 2",pcs,5,100,500,,,,,
-"Detailed description 1",,,,,1,5,2,1,10
-"Detailed description 2",,,,,2,10,3,2,20`;
+const sampleCSv = `abstract_id,description,unit,quantity,rate,amount,
+654321,earth excavation,m3,12,10,120,
+456781,wall,m2,8,10,80,
+`;
 
 const UploadAbstract = ({ onclose, onSuccess, name }) => {
   const [files, setFiles] = useState([]);

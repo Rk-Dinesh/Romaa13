@@ -12,13 +12,14 @@ const customerColumns = [
   { label: "Item Description", key: "description" },
   { label: "Quantity", key: "quantity" },
   { label: "Units", key: "unit" },
-  { label: "Basic Rate", key: "base_rate" },
-  { label: "Basic Amount", key: "base_amount" },
-  { label: "Q-Rate", key: "q_rate" },
-  { label: "Q-Amount", key: "q_amount" },
-  { label: "N-Rate", key: "n_rate" },
-  { label: "N-Amount", key: "n_amount" },
+  { label: "Basic Rate", key: "base_rate", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
+  { label: "Basic Amount", key: "base_amount", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
+  { label: "Q-Rate", key: "q_rate", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
+  { label: "Q-Amount", key: "q_amount", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
+  { label: "N-Rate", key: "n_rate", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
+  { label: "N-Amount", key: "n_amount", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
 ];
+
 
 const Bid = () => {
   const { tender_id } = useParams(); // 📌 Get tender_id from URL
@@ -50,7 +51,7 @@ const Bid = () => {
       setbidId(res.data.data.bid_id)
       setTotalPages(res.data.totalPages || 1);
     } catch (err) {
-      toast.error("Failed to fetch Bid items");
+      //toast.error("Failed to fetch Bid items");
     } finally {
       setLoading(false);
     }

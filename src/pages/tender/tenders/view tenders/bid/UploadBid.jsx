@@ -5,12 +5,12 @@ import { API } from "../../../../../constant";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
-const sampleCSv = `item_name,description,unit,quantity,base_rate,q_rate,n_rate,base_amount,q_amount,n_amount,remarks
-"Concrete Work","Laying and curing concrete for foundation","m3",100,2500,2600,2550,250000,260000,255000,"Use M20 mix"
-"Brick Masonry","Brick work in cement mortar 1:6","m2",200,800,850,820,160000,170000,164000,"Proper alignment required"
-"Plastering","12mm thick cement plaster","m2",150,300,320,310,45000,48000,46500,"Smooth finish required"
-"Painting","Two coats of emulsion paint","m2",180,150,160,155,27000,28800,27900,"Use branded paint"
-"Floor Tiling","Vitrified tiles flooring","m2",120,900,950,930,108000,114000,111600,"Check tile joints"
+const sampleCSv = `item_name,description,specifications,unit,quantity,base_rate,q_rate,n_rate,base_amount,q_amount,n_amount,remarks,work_section
+Concrete Work,Laying and curing concrete for foundation,"M20 grade, 28-day curing, compressive strength 20 N/mm²",m3,100,2500,2600,2550,250000,260000,255000,Use M20 mix,Foundation
+Brick Masonry,Brick work in cement mortar 1:6,"First class bricks, modular size 225×112×75mm, 1:6 cement mortar mix",m2,200,800,850,820,160000,170000,164000,Proper alignment required,Superstructure
+Plastering,12mm thick cement plaster,"12mm thickness, 1:4 cement sand mortar, smooth finish, leveled surface",m2,150,300,320,310,45000,48000,46500,Smooth finish required,Finishing
+Painting,Two coats of emulsion paint,"2 coats emulsion paint on prepared surface, 30-50 microns per coat, water-resistant",m2,180,150,160,155,27000,28800,27900,Use branded paint,Finishing
+Floor Tiling,Vitrified tiles flooring,"600×600mm vitrified tiles, Grade 1, anti-slip finish, 10mm bed joints",m2,120,900,950,930,108000,114000,111600,Check tile joints,Finishing
 `;
 
 const UploadBid = ({ onclose, onSuccess }) => {

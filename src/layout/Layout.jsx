@@ -91,11 +91,11 @@ const LayOut = () => {
           icon: <HiOutlineClipboardList size={23} />,
           to: "/tender/tenders",
         },
-        {
-          title: "Workorders",
-          icon: <LiaClipboardListSolid size={23} />,
-          to: "/tender/workorders",
-        },
+        // {
+        //   title: "Workorders",
+        //   icon: <LiaClipboardListSolid size={23} />,
+        //   to: "/tender/workorders",
+        // },
              {
           title: "DLP",
           icon: <TbDatabaseDollar size={23} />,

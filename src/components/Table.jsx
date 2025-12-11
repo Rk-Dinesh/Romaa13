@@ -13,40 +13,29 @@ import { useNavigate } from "react-router-dom";
 import { IoClose } from "react-icons/io5";
 import Loader from "./Loader";
 
-const truncateWords = (text, limit = 7) => {
+const truncateWords = (text, wordsPerLine = 7) => {
   if (!text) return "";
   const words = text.split(" ");
-  if (words.length <= limit) return text;
-  return words.slice(0, limit).join(" ") + "...";
+  const lines = [];
+
+  for (let i = 0; i < words.length; i += wordsPerLine) {
+    lines.push(words.slice(i, i + wordsPerLine).join(" "));
+  }
+
+  return (
+    <>
+      {lines.map((line, index) => (
+        <span key={index}>
+          {line}
+          {index !== lines.length - 1 && <br />}
+        </span>
+      ))}
+    </>
+  );
 };
-// const ConstructionLoader = ({ columns, rows = 5 }) => {
-//   return (
-//     <tbody className="animate-pulse">
-//       {[...Array(rows)].map((_, rowIndex) => (
-//         <tr
-//           key={rowIndex}
-//           className="border-b-[3px] dark:border-overall_bg-dark border-light-blue"
-//         >
-//           <td className="p-3">
-//             <div className="h-4 w-8 bg-gray-300 dark:bg-gray-700 rounded"></div>
-//           </td>
-//           {columns.map((_, colIndex) => (
-//             <td key={colIndex} className="p-3 text-center">
-//               <div className="h-4 w-24 bg-gray-300 dark:bg-gray-700 rounded"></div>
-//             </td>
-//           ))}
-//           <td className="p-3 text-center">
-//             <div className="flex justify-center gap-2">
-//               <div className="h-6 w-6 bg-yellow-400 rounded animate-bounce"></div>
-//               <div className="h-6 w-6 bg-orange-400 rounded animate-pulse"></div>
-//               <div className="h-6 w-6 bg-gray-400 rounded animate-ping"></div>
-//             </div>
-//           </td>
-//         </tr>
-//       ))}
-//     </tbody>
-//   );
-// };
+
+
+
 
 const Table = ({
   endpoint,
@@ -73,9 +62,9 @@ const Table = ({
   contentMarginTop = "mt-4",
   totalPages = 1,
   currentPage = 1,
-  setCurrentPage = () => {},
+  setCurrentPage = () => { },
   filterParams,
-  setFilterParams = () => {},
+  setFilterParams = () => { },
   onUpdated,
   onSuccess,
   onDelete,
@@ -233,9 +222,8 @@ const Table = ({
                   return (
                     <th
                       key={col.key}
-                      className={`p-3 text-center cursor-pointer ${
-                        addRightRadius ? "rounded-r-lg" : ""
-                      }`}
+                      className={`p-3 text-center cursor-pointer ${addRightRadius ? "rounded-r-lg" : ""
+                        }`}
                     >
                       <div className="flex items-center justify-center gap-2">
                         {col.label}
@@ -268,8 +256,8 @@ const Table = ({
                   DeleteModal ||
                   routepoint ||
                   editroutepoint) && (
-                  <th className="pr-2 text-center rounded-r-lg">Action</th>
-                )}
+                    <th className="pr-2 text-center rounded-r-lg">Action</th>
+                  )}
               </tr>
             </thead>
             <tbody className=" dark:text-white text-greyish dark:bg-layout-dark bg-white text-sm font-light">
@@ -287,151 +275,134 @@ const Table = ({
                     className={`border-b-[3px] dark:border-overall_bg-dark border-light-blue text-center`}
                     onClick={() => onRowClick && onRowClick(item)}
                   >
-                    <td className="p-2 rounded-l-lg">{index + 1}</td>
+                    <td className="p-2 rounded-l-lg ">{index + 1}</td>
                     {columns.map((col, colIndex) => {
                       const isLastColumn = colIndex === columns.length - 1;
-                      const hasAction =
-                        EditModal ||
-                        ViewModal ||
-                        DeleteModal ||
-                        routepoint ||
-                        editroutepoint;
+                      const hasAction = EditModal || ViewModal || DeleteModal || routepoint || editroutepoint;
                       const addRightRadius = isLastColumn && !hasAction;
 
-                      const cellValue = col.render
-                        ? col.render(item) // might be JSX
-                        : item[col.key];
+                      const cellValue = col.render ? col.render(item) : item[col.key];
 
                       let displayValue;
                       if (React.isValidElement(cellValue)) {
-                        // Already JSX, don’t process
                         displayValue = cellValue;
                       } else {
-                        const isEmpty =
-                          cellValue === null ||
-                          cellValue === undefined ||
-                          cellValue === "" ||
-                          (typeof cellValue === "string" &&
-                            cellValue.trim().toLowerCase() === "undefined");
-
-                        displayValue = isEmpty
-                          ? "-"
-                          : truncateWords(String(cellValue), 7);
+                        const isEmpty = cellValue === null || cellValue === undefined || cellValue === "" || (typeof cellValue === "string" && cellValue.trim().toLowerCase() === "undefined");
+                        displayValue = isEmpty ? "-" : (col.formatter ? col.formatter(cellValue) : truncateWords(String(cellValue), 7));
                       }
 
                       return (
                         <td
                           key={col.key}
-                          className={`p-2.5 text-center ${
-                            addRightRadius ? "rounded-r-lg" : ""
-                          }`}
+                          className={`p-2.5 text-center ${addRightRadius ? "rounded-r-lg" : ""}`}
                         >
                           {displayValue}
                         </td>
                       );
                     })}
+
                     {(EditModal ||
                       ViewModal ||
                       DeleteModal ||
                       routepoint ||
                       editroutepoint) && (
-                      <td className="space-x-2.5 p-2 rounded-r-lg">
-                        {(EditModal || editroutepoint) && (
-                          <button
-                            onClick={() => {
-                              if (editroutepoint) {
-                                navigate(`${editroutepoint}`, {
-                                  state: { item },
-                                });
-                              }
-                              if (EditModal === true) {
-                                setShowEdit(false);
-                              } else {
-                                setSelectedItem(item);
-                                setShowEdit(true);
-                              }
-                            }}
-                            className="cursor-pointer dark:bg-icon-dark-blue bg-[#C9E0FF] p-1.5 rounded"
-                          >
-                            <Pencil
-                              size={14}
-                              className="dark:text-white text-blue-500"
-                            />
-                          </button>
-                        )}
-                        {(ViewModal || routepoint) && (
-                          <button
-                            onClick={() => {
-                              if (routepoint) {
-                                // Persist the selected item in localStorage if idKey is present
-                                if (idKey) {
-                                  localStorage.setItem(
-                                    `selected${idKey}`,
-                                    JSON.stringify(item)
-                                  );
-                                }
-
-                                // Navigate based on presence of idKey and id2Key and routepoint param placeholder
-                                if (idKey && id2Key) {
-                                  // If have two keys, navigate with both params appended
-                                  navigate(
-                                    `${routepoint}/${item[idKey]}/${item[id2Key]}`,
-                                    { state: { item } }
-                                  );
-                                } else if (
-                                  idKey &&
-                                  routepoint.includes(`:${idKey}`)
-                                ) {
-                                  // If routepoint contains param placeholder ":idKey", replace it
-                                  const url = routepoint.replace(
-                                    `:${idKey}`,
-                                    item[idKey]
-                                  );
-                                  navigate(url, { state: { item } });
-                                } else if (idKey) {
-                                  // Otherwise append idKey param manually
-                                  navigate(`${routepoint}/${item[idKey]}`, {
+                        <td className="space-x-2.5 p-2 rounded-r-lg">
+                          {(EditModal || editroutepoint) && (
+                            <button
+                              onClick={() => {
+                                if (editroutepoint) {
+                                  navigate(`${editroutepoint}`, {
                                     state: { item },
                                   });
-                                } else {
-                                  // No params, just navigate with state
-                                  navigate(routepoint, { state: { item } });
                                 }
-                              }
+                                if (EditModal === true) {
+                                  setShowEdit(false);
+                                } else {
+                                  setSelectedItem(item);
+                                  setShowEdit(true);
+                                }
+                              }}
+                              className="cursor-pointer dark:bg-icon-dark-blue bg-[#C9E0FF] p-1.5 rounded"
+                            >
+                              <Pencil
+                                size={14}
+                                className="dark:text-white text-blue-500"
+                              />
+                            </button>
+                          )}
+                          {(ViewModal || routepoint) && (
+                            <button
+                              onClick={() => {
+                                if (routepoint) {
+                                  // Persist the selected item in localStorage if idKey is present
+                                  if (idKey) {
+                                    localStorage.setItem(
+                                      `selected${idKey}`,
+                                      JSON.stringify(item)
+                                    );
+                                  }
 
-                              // Handle modal view toggle state based on ViewModal prop
-                              if (ViewModal === true) {
-                                setShowView(false);
-                              } else {
+                                  // Navigate based on presence of idKey and id2Key and routepoint param placeholder
+                                  if (idKey && id2Key) {
+                                    // If have two keys, navigate with both params appended
+                                    navigate(
+                                      `${routepoint}/${item[idKey]}/${item[id2Key]}`,
+                                      { state: { item } }
+                                    );
+                                  } else if (
+                                    idKey &&
+                                    routepoint.includes(`:${idKey}`)
+                                  ) {
+                                    // If routepoint contains param placeholder ":idKey", replace it
+                                    const url = routepoint.replace(
+                                      `:${idKey}`,
+                                      item[idKey]
+                                    );
+                                    navigate(url, { state: { item } });
+                                  } else if (idKey) {
+                                    // Otherwise append idKey param manually
+                                    navigate(`${routepoint}/${item[idKey]}`, {
+                                      state: { item },
+                                    });
+                                  } else {
+                                    // No params, just navigate with state
+                                    navigate(routepoint, { state: { item } });
+                                  }
+                                }
+
+                                // Handle modal view toggle state based on ViewModal prop
+                                if (ViewModal === true) {
+                                  setShowView(false);
+                                } else {
+                                  setSelectedItem(item);
+                                  setShowView(true);
+                                }
+                              }}
+                              className="cursor-pointer dark:bg-icon-dark-green bg-[#BAFFBA] p-1.5 rounded"
+                            >
+                              <LuEye
+                                size={14}
+                                className="text-[#008000] dark:text-[#BAFFBA]"
+                              />
+                            </button>
+                          )}
+
+                          {DeleteModal && (
+                            <button
+                              onClick={() => {
                                 setSelectedItem(item);
-                                setShowView(true);
-                              }
-                            }}
-                            className="cursor-pointer dark:bg-icon-dark-green bg-[#BAFFBA] p-1.5 rounded"
-                          >
-                            <LuEye
-                              size={14}
-                              className="text-[#008000] dark:text-[#BAFFBA]"
-                            />
-                          </button>
-                        )}
-
-                        {DeleteModal && (
-                          <button
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setShowDelete(true);
-                            }}
-                            className="cursor-pointer bg-red-100 dark:bg-icon-dark-red p-1.5 rounded-sm"
-                          >
-                            <RiDeleteBinLine
-                              size={14}
-                              className=" text-red-600"
-                            />
-                          </button>
-                        )}
-                      </td>
-                    )}
+                                setShowDelete(true);
+                              }}
+                              className="cursor-pointer bg-red-100 dark:bg-icon-dark-red p-1.5 rounded-sm"
+                            >
+                              <RiDeleteBinLine
+                                size={14}
+                                className=" text-red-600"
+                              />
+                            </button>
+                          )}
+                        </td>
+                      )}
                   </tr>
                 ))
               ) : (

@@ -4,13 +4,15 @@ import { API } from "../../../../../../constant";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import UploadAbstract from "./UploadAbstract";
+import { toast } from "react-toastify";
 
 const NewInletAbsColumns = [
+  { label: "Abstract ID", key: "abstract_id" },
   { label: "Item Description", key: "description" },
   { label: "Quantity", key: "quantity" },
   { label: "Unit", key: "unit" },
-  { label: "Rate", key: "rate" },
-  { label: "Amount", key: "amount" },
+  { label: "Rate", key: "rate", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
+  { label: "Amount", key: "amount", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
 ];
 
 const NewInletAbs = ({ name }) => {

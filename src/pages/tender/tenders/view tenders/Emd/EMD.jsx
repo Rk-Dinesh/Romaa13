@@ -31,8 +31,8 @@ const EMD = () => {
     },
 
     { label: "Company", key: "company_name" },
-    { label: "Proposed Value", key: "proposed_amount" },
-    { label: "EMD Amount", key: "emd_amount" },
+    { label: "Proposed Value", key: "proposed_amount" , formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
+    { label: "EMD Amount", key: "emd_amount" , formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
     { label: "Bank Name", key: "payment_bank" },
     { label: "Level", key: "level" },
     { label: "Status", key: "status" },
@@ -108,7 +108,7 @@ const EMD = () => {
             EMD Value
           </p>
           <p className="text-sm col-span-1 dark:text-gray-300 text-gray-600">
-            {emdData?.emd?.emd_amount}
+            {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(emdData?.emd?.emd_amount)} 
           </p>
           <p className="text-sm col-span-1 font-bold dark:text-white text-gray-800">
             Expiry Date

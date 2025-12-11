@@ -24,6 +24,7 @@ import Bid from "./bid/Bid";
 import Loader from "../../../../components/Loader";
 import { set } from "date-fns";
 import TenderDetailedEstimate from "./detailed estimate/TenderDetailedEstimate";
+import GeneralSetup from "./Setup/GeneralSetup";
 
 const tabs = [
   {
@@ -202,6 +203,19 @@ const tabs = [
       },
     ],
   },
+  {
+    id: "11",
+    label: "SetUp",
+    component: <GeneralSetup />,
+    buttons: [
+      {
+        label: "Export",
+        icon: <TbFileExport size={23} />,
+        className:
+          "dark:bg-layout-dark  dark:text-white bg-white text-darkest-blue",
+      },
+    ],
+  },
 ];
 // const tenderBreadcrumb = [{ label: "Tender", to: ".." }];
 // const tabBreadcrumbs = {
@@ -331,9 +345,9 @@ const ViewTender = () => {
           </div>
         </div>
 
-        {openModal === "approveTender" && (
+        {/* {openModal === "approveTender" && (
           <ApproveTender onclose={() => setOpenModal(null)} />
-        )}
+        )} */}
         {openModal === "addBoq" && (
           <AddBoq onclose={() => setOpenModal(null)} />
         )}

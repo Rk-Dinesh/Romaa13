@@ -7,6 +7,7 @@ import axios from "axios";
 import { InputField } from "../../../../../components/InputField";
 import { useParams } from "react-router-dom";
 import { API } from "../../../../../constant";
+import { toast } from "react-toastify";
 
 const schema = yup.object().shape({
   payment_date: yup.date().required("Date is required"),
@@ -37,8 +38,10 @@ const schema = yup.object().shape({
 const AddEMD = ({ onclose, onSuccess }) => {
   const { tender_id } = useParams();
   const [emdData, setEmdData] = useState([]);
+  const [loading, setLoading] = useState(false);
   const fetchEMD = async () => {
     try {
+    
       const res = await axios.get(`${API}/tender/gettenderemd/${tender_id}`);
       if (res.data.status && res.data.data) {
         console.log(res.data.data);
@@ -47,7 +50,7 @@ const AddEMD = ({ onclose, onSuccess }) => {
       } else {
         setEmdData([]);
       }
-    } catch {
+      } catch {
       toast.error("Failed to load EMD data");
     }
   };
@@ -66,6 +69,7 @@ const AddEMD = ({ onclose, onSuccess }) => {
 
   const onSubmit = async (data) => {
     try {
+      setLoading(true);
       const payload = {
         company_name: data.company_name,
         proposed_amount: Number(data.proposed_amount),
@@ -81,11 +85,13 @@ const AddEMD = ({ onclose, onSuccess }) => {
       };
 
       await axios.post(`${API}/emd/addproposal/${tender_id}`, payload);
+      setLoading(false);
       if (onSuccess) onSuccess();
       onclose();
     } catch (error) {
       console.error(error);
-      alert(error.response?.data?.message || "Failed to add EMD proposal");
+      setLoading(false);
+      toast.error(error.response?.data?.message || "Failed to add EMD proposal");
     }
   };
 
@@ -202,7 +208,7 @@ const AddEMD = ({ onclose, onSuccess }) => {
                 type="submit"
                 className="cursor-pointer px-6 bg-darkest-blue text-white  rounded"
               >
-                Save
+                {loading ? "Submitting..." : "Submit"}
               </button>
             </div>
           </form>

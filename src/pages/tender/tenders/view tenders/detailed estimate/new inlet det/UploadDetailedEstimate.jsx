@@ -4,11 +4,11 @@ import { IoClose } from "react-icons/io5";
 import { useParams } from "react-router-dom";
 import { API } from "../../../../../../constant";
 
-const sampleCSv = `description,unit,quantity,rate,amount,number,length,breath,depth,contents
-"Concrete slab work",m2,100,50,5000,,,,,
-"Brick work",m3,50,100,5000,,,,,
-"Excavation for foundation",,,,,1,10,5,3,150
-"Backfilling",,,,,2,20,10,4,800
+const sampleCSv = `abstract_id,particulars,nos,l,b,d_h,content,
+654321,u/s cut of wall,"1x2",120,10,1.90,30,
+654321,d/s toe wall,"2x2",90,8,50,30,
+456781,backfilling,"1x2",120,10,1.90,30,
+456781,frontfilling,"1x2",120,10,1.90,30,
 `;
 
 const UploadDetailedEstimate = ({ onclose, onSuccess, name }) => {

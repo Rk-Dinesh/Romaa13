@@ -26,6 +26,7 @@ const schema = yup.object().shape({
 const AddPermittedVendor = ({ onclose, onSuccess }) => {
   const { tender_id } = useParams();
   const [vendors, setVendors] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const {
     register,
@@ -82,38 +83,40 @@ const AddPermittedVendor = ({ onclose, onSuccess }) => {
     }
   }, [vendorName, setValue]);
 
-const onSubmit = async (data) => {
-  try {
-   
-    const vendors = [
-      {
-        vendor_id: data.vendor_id,
-        type: data.type,
-        vendor_name: data.company_name,
-        agreement_start: new Date(data.agreement_start),
-        agreement_end: new Date(data.agreement_end),
-        permitted_by: data.permitted_by,
-        permitted_status: data.permitted_status,
-        remarks: data.remarks,
-      },
-    ];
+  const onSubmit = async (data) => {
+    try {
+      setLoading(true);
+      const vendors = [
+        {
+          vendor_id: data.vendor_id,
+          type: data.type,
+          vendor_name: data.company_name,
+          agreement_start: new Date(data.agreement_start),
+          agreement_end: new Date(data.agreement_end),
+          permitted_by: data.permitted_by,
+          permitted_status: data.permitted_status,
+          remarks: data.remarks,
+        },
+      ];
 
-    const payload = {
-      tender_id: tender_id, 
-      vendors: vendors, 
-    };
+      const payload = {
+        tender_id: tender_id,
+        vendors: vendors,
+      };
 
-    console.log("Payload", payload);
+      console.log("Payload", payload);
 
-    await axios.post(`${API}/permittedvendor/add`, payload);
-    if (onSuccess) onSuccess();
-    reset();
-    onclose();
-  } catch (error) {
-    console.error(error);
-    alert("Failed to add permitted vendor");
-  }
-};
+      await axios.post(`${API}/permittedvendor/add`, payload);
+      if (onSuccess) onSuccess();
+      setLoading(false);
+      reset();
+      onclose();
+    } catch (error) {
+      console.error(error);
+      setLoading(false);
+      toast.error("Failed to add permitted vendor");
+    }
+  };
 
 
   return (
@@ -248,7 +251,7 @@ const onSubmit = async (data) => {
               type="submit"
               className="px-6 bg-darkest-blue text-white rounded"
             >
-              Save
+              {loading ? "Saving..." : "Save"}
             </button>
           </div>
         </form>

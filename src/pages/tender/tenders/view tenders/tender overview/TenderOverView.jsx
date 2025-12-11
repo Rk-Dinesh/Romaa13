@@ -86,8 +86,9 @@ const TenderOverView = () => {
       ]);
 
       setTenderDetailsState([
-        { label: "Tender ID", value: data.tenderDetails?.tender_id },
+       
         { label: "Tender Name", value: data.tenderDetails?.tender_name },
+         { label: "Tender ID", value: data.tenderDetails?.tender_id },
         {
           label: "Tender Published Date",
           value: data.tenderDetails?.tender_published_date
@@ -111,7 +112,7 @@ const TenderOverView = () => {
         { label: "Email ID", value: data.tenderDetails?.contact_email },
         {
           label: "Tender Value",
-          value: data.tenderDetails?.tender_value || "-",
+          value: data.tenderDetails?.tender_value ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(data.tenderDetails?.tender_value) : "-",
         },
       ]);
 
@@ -229,23 +230,55 @@ const TenderOverView = () => {
             )}
           </div>
           <div className="grid grid-cols-12 gap-2  text-xs font-semibold px-2 py-2 ">
-            {tenderDetailsState.map((item, idx) => (
-              <React.Fragment key={idx}>
-                <p className="col-span-6">{item.label}</p>
-                <div className="col-span-6 text-end opacity-50 font-light">
-                  {isEditingTender ? (
-                    <input
-                      type="text"
-                      value={item.value}
-                      onChange={(e) => handleTenderChange(idx, e.target.value)}
-                      className="w-full bg-transparent  focus:outline-none text-right"
-                    />
-                  ) : (
-                    item.value
-                  )}
-                </div>
-              </React.Fragment>
-            ))}
+            
+           {tenderDetailsState.map((item, idx) => {
+  const isTenderName = item.label === "Tender Name";
+
+  if (isTenderName) {
+    return (
+      <React.Fragment key={idx}>
+        {/* Label – first line */}
+        <p className="col-span-12 font-semibold">{item.label}</p>
+
+        {/* Value – second line, editable when isEditingTender */}
+        <div className="col-span-12 opacity-70">
+          {isEditingTender ? (
+            <textarea
+              value={item.value}
+              onChange={(e) => handleTenderChange(idx, e.target.value)}
+              className="w-full bg-transparent focus:outline-none text-left resize-none"
+              rows={2} // adjust as needed
+            />
+          ) : (
+            <p className="whitespace-pre-line">
+              {item.value}
+            </p>
+          )}
+        </div>
+      </React.Fragment>
+    );
+  }
+
+  // default layout for other fields
+  return (
+    <React.Fragment key={idx}>
+      <p className="col-span-6">{item.label}</p>
+      <div className="col-span-6 text-end opacity-50 font-light">
+        {isEditingTender ? (
+          <input
+            type="text"
+            value={item.value}
+            onChange={(e) => handleTenderChange(idx, e.target.value)}
+            className="w-full bg-transparent focus:outline-none text-right"
+          />
+        ) : (
+          item.value
+        )}
+      </div>
+    </React.Fragment>
+  );
+})}
+
           </div>
           {isEditingTender && (
             <div className="flex justify-end gap-2 mt-2">
@@ -316,7 +349,7 @@ const TenderOverView = () => {
                     <p className="text-sm whitespace-pre-wrap">
                       <strong>Notes:</strong> {step.notes || "-"}
                     </p>
-                     <p> <strong>File:</strong> {(step.file_name && <a href={step.file_url} target="_blank" rel="noopener noreferrer" className="text-white hover:underline">{step.file_name}</a>) || "No file"}</p>
+                     <p> <strong>File:</strong> {(step.file_name && <a href={step.file_url} target="_blank" rel="noopener noreferrer" className=" dark:text-white text-black hover:underline">{step.file_name}</a>) || "No file"}</p>
                   </div>
                 ))}
             </div>

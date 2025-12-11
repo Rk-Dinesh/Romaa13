@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -25,7 +25,7 @@ const schema = yup.object().shape({
 
 const AddPenalty = ({ onclose, onSuccess }) => {
   const { tender_id } = useParams();
-
+const [loading, setLoading] = useState(false);
   const {
     register,
     handleSubmit,
@@ -37,6 +37,7 @@ const AddPenalty = ({ onclose, onSuccess }) => {
 
   const onSubmit = async (data) => {
     try {
+      setLoading(true);
       const payload = {
         tender_id,
         listOfPenalties: [
@@ -52,11 +53,13 @@ const AddPenalty = ({ onclose, onSuccess }) => {
 
       await axios.post(`${API}/penalty/add`, payload);
       if (onSuccess) onSuccess();
+      setLoading(false);
       reset();
       onclose();
     } catch (error) {
       console.error(error);
-      alert("Failed to add penalty");
+      setLoading(false);
+      toast.error("Failed to add penalty");
     }
   };
 
@@ -122,7 +125,7 @@ const AddPenalty = ({ onclose, onSuccess }) => {
               Cancel
             </button>
             <button type="submit" className="px-6 bg-darkest-blue text-white rounded">
-              Save
+              {loading ? "Submitting..." : "Submit"}
             </button>
           </div>
         </form>

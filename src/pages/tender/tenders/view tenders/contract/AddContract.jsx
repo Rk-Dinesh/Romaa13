@@ -24,6 +24,7 @@ const schema = yup.object().shape({
 const AddContractWorker = ({ onclose, onSuccess }) => {
   const { tender_id } = useParams();
   const [contractWorkers, setContractWorkers] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const {
     register,
@@ -70,6 +71,7 @@ const AddContractWorker = ({ onclose, onSuccess }) => {
 
   const onSubmit = async (data) => {
     try {
+      setLoading(true);
       const payload = {
         tender_id,
         workers: [
@@ -85,11 +87,13 @@ const AddContractWorker = ({ onclose, onSuccess }) => {
       };
       await axios.post(`${API}/permittedcontractor/add`, payload);
       if (onSuccess) onSuccess();
+      setLoading(false);
       reset();
       onclose();
     } catch (error) {
       console.error(error);
-      alert("Failed to add contract worker");
+      setLoading(false);
+      toast.error("Failed to add contract worker");
     }
   };
 
@@ -186,7 +190,7 @@ const AddContractWorker = ({ onclose, onSuccess }) => {
               type="submit"
               className="px-6 bg-darkest-blue text-white rounded"
             >
-              Save
+              {loading ? "Submitting..." : "Submit"}
             </button>
           </div>
         </form>

@@ -14,8 +14,8 @@ const customerColumns = [
   { label: "Item Description", key: "description" },
   { label: "Quantity", key: "quantity" },
   { label: "Units", key: "unit" },
-  { label: "Final Rate", key: "final_unit_rate" },
-  { label: "Amount", key: "final_amount" },
+  { label: "Final Rate",key: "n_rate", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },,
+  { label: "Amount", key: "n_amount", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
 ];
 
 const BOQ = () => {
@@ -36,17 +36,17 @@ const BOQ = () => {
     if (!tender_id) return;
     setLoading(true);
     try {
-      const res = await axios.get(`${API}/boq/items/${tender_id}`, {
+      const res = await axios.get(`${API}/bid/get?tender_id=${tender_id}`, {
         params: {
           page: currentPage,
           limit: 10,
         },
       });
 
-      setItems(res.data.data || []);
+      setItems(res.data.data.items || []);
       setTotalPages(res.data.totalPages || 1);
     } catch (err) {
-      toast.error("Failed to fetch BOQ items");
+      //toast.error("Failed to fetch Bid items");
     } finally {
       setLoading(false);
     }
@@ -76,12 +76,12 @@ const BOQ = () => {
         columns={customerColumns}
         //EditModal={true}
         exportModal={false}
-        UploadModal={UploadBoq}
+       // UploadModal={UploadBoq}
         DeleteModal={DeleteModal}
         deletetitle="BOQ"
-        AddModal={AddBoq}
-        addButtonLabel="Add Boq"
-        addButtonIcon={<LuUserRoundSearch size={24} />}
+       // AddModal={AddBoq}
+       // addButtonLabel="Add Boq"
+      //  addButtonIcon={<LuUserRoundSearch size={24} />}
         totalPages={totalPages}
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}

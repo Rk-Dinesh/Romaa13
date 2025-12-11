@@ -11,7 +11,7 @@ import AddPenalty from "./AddPenalities";
 const penaltyColumns = [
   { label: "Penalty_id", key: "penalty_id" },
   { label: "Penalty Type", key: "penalty_type" },
-  { label: "Penalty Amount", key: "penalty_amount" },
+  { label: "Penalty Amount", key: "penalty_amount" , formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) } ,
   { label: "Penalty Date", key: "penalty_date" ,
     render: (item) => item.penalty_date ? new Date(item.penalty_date).toLocaleDateString() : "-"
   },
@@ -77,7 +77,7 @@ const Penalities = () => {
         contentMarginTop="mt-0"
         endpoint={penalty}
         columns={penaltyColumns}
-        ViewModal={true}
+       // ViewModal={true}
         AddModal={AddPenalty}
         addButtonLabel="Add Penalty"
         addButtonIcon={<LuUserRoundSearch size={24} />}
