@@ -158,6 +158,8 @@ import WorkOrderRequestForm from "../pages/projects/Wo issuance/work order reque
 import EnquiryForm from "../pages/purchase/purchase enquiry/EnquiryForm";
 import Assets from "../pages/settings/assets/Assets";
 import ViewProjectAssest from "../pages/projects/project assets/Viewprojectassest";
+import EMDTrackingTable from "../pages/tender/emd/viewEMDTracking";
+import SecurityDepositTrackingTable from "../pages/tender/security deposit/viewSDTracking";
 
 const AppRoutes = () => {
   return (
@@ -194,9 +196,15 @@ const AppRoutes = () => {
                   />
                 </Route>
               </Route>
-              <Route path="emd" element={<EMD />} />
+              <Route path="emd">
+                <Route index element={<EMD />} />
+                <Route path="viewemd/:tender_id" element={<EMDTrackingTable />} />
+              </Route>
               <Route path="dlp" element={<DLP />} />
-              <Route path="securitydeposit" element={<SecurityDeposit />} />
+              <Route path="securitydeposit">
+                <Route index element={<SecurityDeposit />} />
+                <Route path="viewsecuritydeposit/:tender_id" element={<SecurityDepositTrackingTable />} />
+              </Route>
               {/* <Route path="projectpenalty" element={<ProjectPenalty />} /> */}
               <Route path="projectpenalty">
                 <Route index element={<ProjectPenalty />} />

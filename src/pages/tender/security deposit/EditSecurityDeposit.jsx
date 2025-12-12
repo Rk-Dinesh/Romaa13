@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -19,6 +19,7 @@ const schema = yup.object().shape({
 });
 
 const EditSecurityDeposit = ({item, onclose, onUpdated }) => {
+  const[loading, setLoading] = useState(false);
 
   const {
     register,
@@ -31,19 +32,20 @@ const EditSecurityDeposit = ({item, onclose, onUpdated }) => {
   const onSubmit = async (data) => {
 
     try {
+      setLoading(true);
       const res = await axios.post(
         `${API}/tender/securitydepositamount/${item.tender_id}`,
         data
       );
-      console.log(res);
-      
       toast.success(" Updated successfully ✅");
       if (onUpdated) onUpdated();
+      setLoading(false);
       onclose();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to add client ❌");
+      setLoading(false);
     } finally {
-      //setSaving(false);
+      setLoading(false);
     }
   };
 
@@ -93,7 +95,7 @@ const EditSecurityDeposit = ({item, onclose, onUpdated }) => {
                 type="submit"
                 className="cursor-pointer px-6 bg-darkest-blue text-white  rounded"
               >
-                Save
+                {loading ? "Saving..." : "Save"}
               </button>
             </div>
           </form>

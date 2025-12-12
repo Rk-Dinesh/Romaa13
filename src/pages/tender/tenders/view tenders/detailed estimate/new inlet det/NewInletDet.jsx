@@ -78,7 +78,7 @@ const NewInletDet = ({ name }) => {
          </div>
 
           <div className="rounded-lg bg-slate-50 dark:bg-layout-dark ">
-            <div className="grid grid-cols-12 px-6 py-3 text-sm font-semibold text-black dark:text-white">
+            <div className="grid grid-cols-12 px-6 py-3 text-sm font-semibold text-black dark:text-white border-b border-slate-200 dark:border-slate-700">
               <div className="col-span-1">S.no</div>
               <div className="col-span-2">Abstract ID</div>
               <div className="col-span-3">Item Description</div>

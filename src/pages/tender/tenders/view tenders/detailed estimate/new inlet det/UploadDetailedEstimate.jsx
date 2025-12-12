@@ -5,10 +5,10 @@ import { useParams } from "react-router-dom";
 import { API } from "../../../../../../constant";
 
 const sampleCSv = `abstract_id,particulars,nos,l,b,d_h,content,
-654321,u/s cut of wall,"1x2",120,10,1.90,30,
-654321,d/s toe wall,"2x2",90,8,50,30,
-456781,backfilling,"1x2",120,10,1.90,30,
-456781,frontfilling,"1x2",120,10,1.90,30,
+ABS001,u/s cut of wall,"1x2",120,10,1.90,30,
+ABS001,d/s toe wall,"2x2",90,8,50,30,
+ABS002,backfilling,"1x2",120,10,1.90,30,
+ABS002,frontfilling,"1x2",120,10,1.90,30,
 `;
 
 const UploadDetailedEstimate = ({ onclose, onSuccess, name }) => {

@@ -6,8 +6,8 @@ import { API } from "../../../../../../constant";
 import { toast } from "react-toastify";
 
 const sampleCSv = `abstract_id,description,unit,quantity,rate,amount,
-654321,earth excavation,m3,12,10,120,
-456781,wall,m2,8,10,80,
+ABS001,earth excavation,m3,12,10,120,
+ABS002,wall,m2,8,10,80,
 `;
 
 const UploadAbstract = ({ onclose, onSuccess, name }) => {

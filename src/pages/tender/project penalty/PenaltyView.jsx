@@ -61,7 +61,7 @@ const PenaltyCardGrid = () => {
                 {penalty.penalty_type}
               </h3>
               <p className="mb-1 text-gray-300">
-                <span className="font-semibold">Amount:</span> ₹{penalty.penalty_amount.toFixed(2)}
+                <span className="font-semibold">Amount:</span> {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(penalty.penalty_amount)}
               </p>
               <p className="mb-1 text-gray-300">
                 <span className="font-semibold">Date:</span>{" "}

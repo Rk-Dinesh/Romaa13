@@ -1,4 +1,3 @@
-import { BoqProjectdata} from "../../../../../../components/Data";
 import Table from "../../../../../../components/Table";
 
 
@@ -9,6 +8,7 @@ const BoqProjectsColumns = [
   { label: "Rate", key: "rate" },
   { label: "Amount", key: "amount" },
 ];
+const BoqProjectdata = [];
 
 const BOQProject = () => {
   return (

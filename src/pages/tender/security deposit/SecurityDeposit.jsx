@@ -5,6 +5,7 @@ import Table from "../../../components/Table";
 import axios from "axios";
 import { API } from "../../../constant";
 import EditSecurityDeposit from "./EditSecurityDeposit";
+import { toast } from "react-toastify";
 
 
 
@@ -15,7 +16,8 @@ const Columns = [
     label: "Security Deposit",
     key: "emd.approved_emd_details[0].security_deposit_amount",
     render: (item) =>
-      item.emd?.approved_emd_details?.[0]?.security_deposit_amount ?? "-"
+      item.emd?.approved_emd_details?.[0]?.security_deposit_amount ?? "-",
+    formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value),
   },
   {
     label: "Expiry Date",
@@ -29,20 +31,16 @@ const Columns = [
     label: "Amount Collected",
     key: "emd.approved_emd_details[0].security_deposit_amount_collected",
     render: (item) =>
-      item.emd?.approved_emd_details?.[0]?.security_deposit_amount_collected ?? "-"
+      item.emd?.approved_emd_details?.[0]?.security_deposit_amount_collected ?? "-",
+    formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value),
   },
   {
     label: "Balance",
     key: "emd.approved_emd_details[0].security_deposit_pendingAmount",
     render: (item) =>
-      item.emd?.approved_emd_details?.[0]?.security_deposit_pendingAmount ?? "-"
+      item.emd?.approved_emd_details?.[0]?.security_deposit_pendingAmount ?? "-",
+    formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value),
   },
-  {
-    label: "Note",
-    key: "emd.approved_emd_details[0].security_deposit_note",
-    render: (item) =>
-      item.emd?.approved_emd_details?.[0]?.security_deposit_note ?? "-"
-  }
 ];
 
 const SecurityDeposit = () => {
@@ -70,8 +68,6 @@ const SecurityDeposit = () => {
           },
         });
         setDeposit(res.data.data);
-        console.log(res.data.data);
-        
         setTotalPages(res.data.totalPages);
       } catch (err) {
         toast.error("Failed to fetch tenders");
@@ -94,6 +90,8 @@ const SecurityDeposit = () => {
       FilterModal={Filters}
       EditModal={EditSecurityDeposit}
        onUpdated={fetchTendersEMDSD}
+       idKey='tender_id'
+       routepoint={'viewsecuritydeposit'}
     />
   );
 };

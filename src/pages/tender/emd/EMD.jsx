@@ -5,6 +5,7 @@ import Table from "../../../components/Table";
 import axios from "axios";
 import { API } from "../../../constant";
 import EditEMDModal from "./EditEMDModal";
+import { toast } from "react-toastify";
 
 const Columns = [
   { label: "Tender ID", key: "tender_id" },
@@ -14,6 +15,7 @@ const Columns = [
     key: "emd.approved_emd_details[0].emd_approved_amount",
     render: (item) =>
       item.emd?.approved_emd_details?.[0]?.emd_approved_amount ?? "-",
+    formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value),
   },
   {
     label: "Expiry Date",
@@ -28,17 +30,14 @@ const Columns = [
     key: "emd.approved_emd_details[0].emd_deposit_amount_collected",
     render: (item) =>
       item.emd?.approved_emd_details?.[0]?.emd_deposit_amount_collected ?? "-",
+    formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value),
   },
   {
     label: "Balance",
     key: "emd.approved_emd_details[0].emd_deposit_pendingAmount",
     render: (item) =>
       item.emd?.approved_emd_details?.[0]?.emd_deposit_pendingAmount ?? "-",
-  },
-  {
-    label: "Note",
-    key: "emd.approved_emd_details[0].emd_note",
-    render: (item) => item.emd?.approved_emd_details?.[0]?.emd_note ?? "-",
+    formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value),
   },
 ];
 
@@ -66,7 +65,6 @@ const EMD = () => {
         },
       });
       setEMD(res.data.data);
-      console.log(res.data.data);
 
       setTotalPages(res.data.totalPages);
     } catch (err) {
@@ -92,6 +90,8 @@ const EMD = () => {
       FilterModal={Filters}
       onExport={() => console.log("Exporting...")}
       onUpdated={fetchTendersEMDSD}
+      idKey='tender_id'
+      routepoint={'viewemd'}
     />
   );
 };

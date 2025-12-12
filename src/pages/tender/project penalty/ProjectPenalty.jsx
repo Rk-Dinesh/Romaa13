@@ -31,8 +31,8 @@ const ProjectPenaltyColumns = [
 //         item.tender_location?.country || ""
 //       } - ${item.tender_location?.pincode || ""}`,
 //   },
-  { label: "Amount", key: "tender_value" },
-   { label: "Project Penalty", key: "penalty_final_value",  },
+  { label: "Amount", key: "tender_value", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value), },
+   { label: "Project Penalty", key: "penalty_final_value", formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value), },
 ];
 
 const ProjectPenalty = () => {

@@ -233,10 +233,10 @@ const PreliminaryProcessStepper = ({onUploadSuccess}) => {
                   w-10 h-10 mx-auto rounded-full flex items-center justify-center font-semibold text-sm
                   transition-colors duration-300 select-none cursor-default
                   ${isCurrent ? "bg-blue-600 text-white dark:bg-blue-500" : ""}
-                  ${isCompleted ? "bg-green-500 text-white dark:bg-green-400" : ""}
+                  ${isCompleted ? "bg-slate-700 text-white dark:bg-green-700" : ""}
                   ${
                     isUpcoming
-                      ? "bg-gray-300 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                      ? "bg-gray-200 text-gray-600 dark:bg-gray-400 dark:text-gray-200"
                       : ""
                   }
                 `}
@@ -250,8 +250,8 @@ const PreliminaryProcessStepper = ({onUploadSuccess}) => {
                 <div
                   aria-hidden="true"
                   className={`
-                    absolute top-5 right-0 w-full h-1 bg-gray-300 dark:bg-gray-700
-                    ${isCompleted ? "bg-green-500 dark:bg-green-400" : ""}
+                    absolute top-5 right-0 w-full h-1 bg-gray-200 dark:bg-gray-700
+                    ${isCompleted ? "bg-slate-700 dark:bg-slate-700" : ""}
                     transition-colors duration-300
                     left-[calc(50%+20px)]
                     right-[-50%]
@@ -270,7 +270,7 @@ const PreliminaryProcessStepper = ({onUploadSuccess}) => {
                 className={`
                   text-center mt-2 text-xs font-semibold truncate select-none transition-colors duration-300
                   ${isCurrent ? "text-blue-700 dark:text-blue-400" : ""}
-                  ${isCompleted ? "text-green-700 dark:text-green-300" : ""}
+                  ${isCompleted ? "text-slate-700 dark:text-slate-700" : ""}
                   ${isUpcoming ? "text-gray-500 dark:text-gray-400" : ""}
                 `}
                 title={s.label}

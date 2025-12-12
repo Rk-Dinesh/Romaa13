@@ -1,4 +1,4 @@
-import { GeneralAbstractdata } from "../../../../../../components/Data";
+
 import Table from "../../../../../../components/Table";
 
 const Columns = [
@@ -11,6 +11,8 @@ const Columns = [
   },
   { label: "Amount", key: "amount" },
 ];
+
+const GeneralAbstractdata = [];
 
 const GeneralAbstract = () => {
   return (
