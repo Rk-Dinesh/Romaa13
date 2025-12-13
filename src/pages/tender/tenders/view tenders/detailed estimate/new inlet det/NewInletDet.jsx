@@ -83,7 +83,7 @@ const NewInletDet = ({ name }) => {
               <div className="col-span-2">Abstract ID</div>
               <div className="col-span-3">Item Description</div>
               <div className="col-span-2 text-right">Quantity</div>
-              <div className="col-span-2 text-right">Rate</div>
+              {/* <div className="col-span-2 text-right">Rate</div> */}
             </div>
 
             <div className=" divide-y-2 divide-slate-200 dark:divide-slate-700 bg-white dark:bg-layout-dark">
@@ -106,7 +106,7 @@ const NewInletDet = ({ name }) => {
                         {abs.quantity || "N/A"}
                       </div>
                       <div className="col-span-2 flex items-center justify-end gap-2">
-                        <span>₹{abs.rate || "N/A"}</span>
+                        {/* <span>₹{abs.rate || "N/A"}</span> */}
                         <span
                           className={`transition-transform ${
                             isOpen ? "rotate-180" : "rotate-0"

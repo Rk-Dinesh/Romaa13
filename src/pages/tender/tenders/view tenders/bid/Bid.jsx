@@ -9,6 +9,7 @@ import { LuUserRoundSearch } from "react-icons/lu";
 import UploadBid from "./UploadBid";
 
 const customerColumns = [
+  { label: "Item ID", key: "item_id" },
   { label: "Item Description", key: "description" },
   { label: "Quantity", key: "quantity" },
   { label: "Units", key: "unit" },

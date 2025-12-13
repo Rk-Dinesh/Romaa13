@@ -11,7 +11,7 @@ const Columns = [
   { label: "Tender ID", key: "tender_id" },
   { label: "Project Name", key: "tender_name" },
   {
-    label: "EMP",
+    label: "EMD",
     key: "emd.approved_emd_details[0].emd_approved_amount",
     render: (item) =>
       item.emd?.approved_emd_details?.[0]?.emd_approved_amount ?? "-",

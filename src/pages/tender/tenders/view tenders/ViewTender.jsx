@@ -49,7 +49,7 @@ const tabs = [
 
   {
     id: "2",
-    label: "Project Documents",
+    label: "Tender Documents",
     component: <Plan />,
     buttons: [
       // {

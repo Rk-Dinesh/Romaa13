@@ -1,26 +1,46 @@
 
+import axios from "axios";
 import Table from "../../../../../../components/Table";
+import { API } from "../../../../../../constant";
+import { useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 const Columns = [
-  { label: "Item Description", key: "itemdesc" },
-  { label: "Quantity", key: "quantity" },
-  { label: "Unit", key: "unit" },
+  { label: "Abstract ", key: "heading" },
   {
-    label: "Rate",
-    key: "rate",
+    label: "Abstract Amount ",
+    key: "total_amount",
+    formatter: (value) =>
+      new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0,
+        minimumFractionDigits: 0,
+      }).format(value),
   },
-  { label: "Amount", key: "amount" },
 ];
 
-const GeneralAbstractdata = [];
-
 const GeneralAbstract = () => {
+  const { tender_id } = useParams();
+  const [generalAbstractdata, setGeneralAbstractdata] = useState([]);
+  const getGeneralAbstractdata = async () => {
+    try {
+      const res = await axios.get(
+        `${API}/detailedestimate/getgeneralabstract?tender_id=${tender_id}`
+      );
+      setGeneralAbstractdata(res.data.data);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+  useEffect(() => {
+    getGeneralAbstractdata();
+  }, []);
   return (
     <Table
       contentMarginTop="mt-0"
-      endpoint={GeneralAbstractdata}
+      endpoint={generalAbstractdata}
       columns={Columns}
-      routepoint={"Viewgs"}
       exportModal={false}
     />
   );
