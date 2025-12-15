@@ -42,6 +42,7 @@ const GeneralAbstract = () => {
       endpoint={generalAbstractdata}
       columns={Columns}
       exportModal={false}
+      pagination={false}
     />
   );
 };

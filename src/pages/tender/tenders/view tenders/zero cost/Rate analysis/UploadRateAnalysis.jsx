@@ -5,25 +5,18 @@ import { API } from "../../../../../../constant";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
-const sampleCSv = `itemNo,workItem,category,Sub_Category,description,unit,quantity,rate,amount,finalRate,output
-1,Earthwork,MAIN_ITEM,,Earthwork,Cum,,,,663.35,855.36
-1,Earthwork,MACHINERIES,Equipment,Hire JCB,Month,2,80000,160000,239.67,
-1,Earthwork,MACHINERIES,Equipment,Tractor,Month,1,45000,45000,239.67,
-1,Earthwork,FUEL,Fuel,Diesel,Lit,1275,96,122400,143.1,
-1,Earthwork,SUBCONTRACTOR,S/C Work,Blasting,Points,1100,180,198000,231.48,
-1,Earthwork,MANPOWER,Labor,Helpers,Nos,60,700,42000,49.1,
-,,,,,,,,,,
-2,Refilling,MAIN_ITEM,,Refilling,Cum,,,,89.58,684.288
-2,Refilling,MACHINERIES,Equipment,Hire JCB,Month,0.5,80000,40000,58.45,
-2,Refilling,FUEL,Fuel,Diesel,Lit,112.5,96,10800,15.78,
-2,Refilling,MANPOWER,Labor,Helpers,Nos,15,700,10500,15.34,
-,,,,,,,,,,
-3,Gravel Filling,MAIN_ITEM,,Gravel Filling,Cum,,,,301.03,543.54
-3,Gravel Filling,MATERIALS,Material,Water Load,Load,30,700,21000,38.62,
-3,Gravel Filling,MACHINERIES,Equipment,Hire JCB,Month,1,80000,80000,147.4,
-3,Gravel Filling,FUEL,Fuel,Diesel,Lit,375,96,36000,66.27,
-3,Gravel Filling,MANPOWER,Labor,Helpers,Nos,60,700,42000,48.74,`;
-
+const sampleCSv = `itemNo,category,description,unit,working_quantity,rate
+ABS001,MAIN_ITEM,,Cum,855.36,
+ABS001,MY-M,Hire JCB,Month,2,80000
+ABS001,MY-M,Tractor,Month,1,45000
+ABS001,MY-F,Diesel,Lit,1275,96
+ABS001,MP-C,Blasting,Points,1100,180
+ABS001,MP-NMR,Helpers,Nos,60,700
+ABS002,MAIN_ITEM,,Cum,684.288,
+ABS002,MY-M,Hire JCB,Month,0.5,80000
+ABS002,MY-F,Diesel,Lit,112.5,96
+ABS002,MP-NMR,Helpers,Nos,15,700
+`;
 const UploadRateAnalysis = ({ onclose, onSuccess }) => {
   const [files, setFiles] = useState([]);
   const [saving, setSaving] = useState(false);

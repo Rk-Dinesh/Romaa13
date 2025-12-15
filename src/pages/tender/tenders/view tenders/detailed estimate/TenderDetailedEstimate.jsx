@@ -38,14 +38,9 @@ const TenderDetailedEstimate = () => {
             label: `${item.heading} Detailed`,
             component: <NewInletDet name={item.detailedKey} />,
           },
-         
         ]);
 
-        setTabs((prev) => [
-          prev[0], // keep GS(General Abstract)
-          prev[1], // keep BOQ
-          ...dynamicTabs,
-        ]);
+        setTabs((prev) => [prev[0], prev[1], ...dynamicTabs]);
       }
     } catch (error) {
       console.error("Error fetching headings:", error);
@@ -89,17 +84,17 @@ const TenderDetailedEstimate = () => {
   const activeTabData = tabs.find((tab) => tab.id === activeTab);
 
   return (
-    <div className="font-roboto-flex flex flex-col h-full p-4">
-      <Title text="Tender Detailed Estimate" />
+    <div className="font-roboto-flex h-full flex flex-col">
+      <Title page_title=" Tender Detailed Estimate" />
 
       {/* Add Heading */}
-      <form onSubmit={handleAddTabs} className="flex gap-2 my-3 justify-end">
+      <form onSubmit={handleAddTabs} className="flex gap-2   justify-end">
         <input
           type="text"
           placeholder="Enter Name (e.g., Road, New Inlet)"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="border rounded px-3 py-2 text-sm w-60"
+          className="border rounded px-3  text-sm w-60"
         />
         <button
           type="submit"
@@ -113,7 +108,7 @@ const TenderDetailedEstimate = () => {
       </form>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 py-2.5">
+      <div className="flex flex-wrap gap-2 py-2.5 ">
         {tabs.map(({ id, label }) => (
           <p
             key={id}
@@ -130,7 +125,8 @@ const TenderDetailedEstimate = () => {
       </div>
 
       {/* Active Component */}
-      <div className="h-full overflow-y-auto no-scrollbar mt-2">
+      {/* Active Component */}
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
         {activeTabData?.component || (
           <div className="text-center text-gray-500 mt-4">
             Select a tab to view content

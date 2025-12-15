@@ -11,6 +11,7 @@ import Machines from "./machines/Machines";
 import ManPower from "./man power/ManPower";
 import { IoChevronBackSharp } from "react-icons/io5";
 import Button from "../../../../../components/Button";
+import Title from "../../../../../components/Title";
 
 
   const tabs = [
@@ -62,7 +63,7 @@ import Button from "../../../../../components/Button";
 ];
 
 
-const ZeroCost = () => {
+const TenderZeroCost = () => {
   const navigate =  useNavigate();
   const [activeTab, setActiveTab] = useState(tabs[0].id);
 
@@ -70,6 +71,7 @@ const ZeroCost = () => {
 
   return (
     <>
+    <Title page_title=" Tender Zero Cost" />
       <div className="font-roboto-flex flex flex-col h-full">
         <div className=" font-roboto-flex  cursor-pointer flex justify-between items-center  ">
           <div className="flex flex-wrap gap-2 py-2.5 ">
@@ -103,4 +105,4 @@ const ZeroCost = () => {
   );
 };
 
-export default ZeroCost;
+export default TenderZeroCost;

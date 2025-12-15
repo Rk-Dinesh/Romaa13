@@ -41,6 +41,7 @@ const NewInletAbs = ({ name }) => {
     <Table
       loading={loading}
       contentMarginTop="mt-0"
+      pagination={false}
       UploadModal={UploadAbstract}
       endpoint={abstract}
       columns={NewInletAbsColumns}

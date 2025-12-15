@@ -63,7 +63,7 @@ const BOQProject = () => {
 
   return (
 
-      <div className="overflow-x-auto border border-gray-300  bg-white shadow-sm">
+      <div className="overflow-x-auto border border-gray-300 dark:border-gray-700 bg-white shadow-sm">
         <table className="min-w-full border-collapse text-xs">
           <thead>
             {/* Header Row 1 */}
@@ -107,7 +107,7 @@ const BOQProject = () => {
           <tbody>
             {/* FIXED: Map over "billOfQty" */}
             {boqdata.billOfQty.map((item, idx) => (
-              <tr key={item.item_id || idx} className="hover:bg-gray-50 transition-colors">
+              <tr key={item.item_id || idx} className="hover:bg-gray-50 text-gray-600 transition-colors">
                 <td className="border px-2 py-1 text-center">{idx + 1}</td>
                 <td className="border px-2 py-1 font-medium">{item.item_name}</td>
                 <td className="border px-2 py-1 text-center">{item.unit}</td>
@@ -142,7 +142,7 @@ const BOQProject = () => {
             ))}
 
             {/* Footer Row: Totals */}
-            <tr className="bg-gray-200 font-bold border-t-2 border-gray-300">
+            <tr className="bg-gray-200 font-bold border-t-2 border-gray-300 text-gray-600">
               <td colSpan={3} className="border px-2 py-2 text-center">
                 Grand Total
               </td>

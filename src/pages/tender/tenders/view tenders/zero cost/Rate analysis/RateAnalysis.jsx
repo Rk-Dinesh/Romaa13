@@ -209,6 +209,30 @@ const sample = [
   },
 ];
 
+const groupLinesByCategory = (lines = []) => {
+  const grouped = {};
+
+  lines.forEach((line) => {
+    if (!grouped[line.category]) {
+      grouped[line.category] = [];
+    }
+    grouped[line.category].push({
+      description: line.description,
+      unit: line.unit,
+      quantity: line.quantity,
+      rate: line.rate,
+      amount: line.amount,
+      finalRate: line.total_rate || line.finalRate,
+    });
+  });
+
+  return Object.entries(grouped).map(([category, sub]) => ({
+    category,
+    sub,
+  }));
+};
+
+
 const RateAnalysis = ({ data = sample }) => {
   const [expandedRow, setExpandedRow] = useState(null);
   const toggleRow = (index) => {
@@ -223,8 +247,17 @@ const RateAnalysis = ({ data = sample }) => {
     try {
       const res = await axios.get(
         `${API}/rateanalysis/getbytenderId?tenderId=${tender_id}`
-      )
-      setRateAnalysis(res.data.data.work_items || []);
+      );
+      const transformed = (res.data.data.work_items || []).map((item) => ({
+        itemNo: item.itemNo,
+        workItem: item.itemNo, // or map proper name if available
+        unit: item.unit || "-",
+        output: item.output || "-",
+        finalRate: item.final_rate,
+        lines: groupLinesByCategory(item.lines),
+      }));
+
+      setRateAnalysis(transformed);
     } catch (err) {
       toast.error("Failed to fetch Rate Analysis ");
     } finally {
@@ -402,7 +435,10 @@ const RateAnalysis = ({ data = sample }) => {
         </div>
       </div>
       {showUpload && (
-        <UploadRateAnalysis onclose={() => setShowUpload(false)} onSuccess={fetchRateAnalysis} />
+        <UploadRateAnalysis
+          onclose={() => setShowUpload(false)}
+          onSuccess={fetchRateAnalysis}
+        />
       )}
     </>
   );

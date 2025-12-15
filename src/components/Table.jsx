@@ -72,6 +72,7 @@ const Table = ({
   id2Key,
   name = "no data",
   onRowClick,
+  pagination=true,
 }) => {
   const navigate = useNavigate();
   const { searchTerm } = useSearch();
@@ -294,7 +295,7 @@ const Table = ({
                       return (
                         <td
                           key={col.key}
-                          className={`p-2.5 text-center ${addRightRadius ? "rounded-r-lg" : ""}`}
+                          className={` p-2.5 first-letter:uppercase text-center ${addRightRadius ? "rounded-r-lg" : ""}`}
                         >
                           {displayValue}
                         </td>
@@ -419,15 +420,15 @@ const Table = ({
           </table>
         </div>
       </div>
-      {!loading && (
+      {pagination && !loading && (
         <Pagination
           totalItems={sortedItems.length}
           totalPages={totalPages}
           itemsPerPage={itemsPerPage}
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
-        />
-      )}
+      />
+      )}
       {AddModal && showAdd && (
         <AddModal onclose={() => setShowAdd(false)} onSuccess={onSuccess} />
       )}
