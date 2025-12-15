@@ -11,6 +11,7 @@ import { useParams } from "react-router-dom";
 const groupLinesByCategory = (lines = []) => {
   const grouped = {};
   lines.forEach((line) => {
+    if (!line.category) return;
     if (!grouped[line.category]) {
       grouped[line.category] = [];
     }
@@ -35,6 +36,7 @@ const RateAnalysis = () => {
   const [rateAnalysis, setRateAnalysis] = useState([]);
   const [openSections, setOpenSections] = useState(new Set());
   const [showUpload, setShowUpload] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const toggleSection = (index) => {
@@ -58,7 +60,7 @@ const RateAnalysis = () => {
         itemNo: item.itemNo,
         workItem: item.workItem,
         unit: item.unit || "-",
-        output: item.working_quantity || "-",
+        output: item.working_quantity || 0,
         finalRate: item.final_rate,
         MY_M_rate: item.MY_M_rate,
         MY_F_rate: item.MY_F_rate,
@@ -70,8 +72,6 @@ const RateAnalysis = () => {
       }));
 
       setRateAnalysis(transformed);
-
-      // Set all sections open by default
       setOpenSections(new Set(transformed.map((_, i) => i)));
     } catch (err) {
       toast.error("Failed to fetch Rate Analysis");
@@ -85,29 +85,239 @@ const RateAnalysis = () => {
     fetchRateAnalysis();
   }, [tender_id]);
 
-  const DetailHeaderRow = () => (
-    <div className="grid grid-cols-6 gap-2 text-[11px] font-semibold bg-indigo-100 px-3 py-2 rounded-t-md dark:text-black">
-      <span>Description</span>
-      <span>Unit</span>
-      <span className="text-right">Quantity</span>
-      <span className="text-right">Rate</span>
-      <span className="text-right">Amount</span>
-      <span className="text-right">Rate / Unit</span>
-    </div>
-  );
+  const updateWorkItem = (index, field, value) => {
+    setRateAnalysis((prev) => {
+      const copy = [...prev];
+      const item = copy[index];
+      if (!item) return prev;
+
+      item[field] = Number(value);
+
+      // Recalculate all line finalRate for this work item
+      const workingQty = item.output || 1;
+      item.lines.forEach((categoryGroup) => {
+        categoryGroup.sub.forEach((line) => {
+          line.finalRate = line.amount / workingQty;
+        });
+      });
+
+      // Recalculate category totals
+      const MY_M_rate = item.lines
+        .filter((g) => g.category === "MY-M")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      const MY_F_rate = item.lines
+        .filter((g) => g.category === "MY-F")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      const MP_C_rate = item.lines
+        .filter((g) => g.category === "MP-C")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      const MP_NMR_rate = item.lines
+        .filter((g) => g.category === "MP-NMR")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      const MT_CM_rate = item.lines
+        .filter((g) => g.category === "MT-CM")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      const MT_BL_rate = item.lines
+        .filter((g) => g.category === "MT-BL")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      item.MY_M_rate = MY_M_rate;
+      item.MY_F_rate = MY_F_rate;
+      item.MP_C_rate = MP_C_rate;
+      item.MP_NMR_rate = MP_NMR_rate;
+      item.MT_CM_rate = MT_CM_rate;
+      item.MT_BL_rate = MT_BL_rate;
+
+      // Recalculate finalRate
+      item.finalRate = MY_M_rate + MY_F_rate + MP_C_rate + MP_NMR_rate + MT_CM_rate + MT_BL_rate;
+
+      return copy;
+    });
+  };
+
+  const updateLine = (workItemIndex, categoryIndex, lineIndex, field, value) => {
+    setRateAnalysis((prev) => {
+      const copy = [...prev];
+      const item = copy[workItemIndex];
+      if (!item || !item.lines || !item.lines[categoryIndex] || !item.lines[categoryIndex].sub) {
+        return prev;
+      }
+      const line = item.lines[categoryIndex].sub[lineIndex];
+      if (!line) return prev;
+
+      const numFields = ["quantity", "rate"];
+      const parsed = numFields.includes(field) ? Number(value || 0) : value;
+      line[field] = parsed;
+
+      // Update amount = quantity * rate
+      line.amount = (line.quantity || 0) * (line.rate || 0);
+
+      // Update finalRate = amount / working_quantity
+      const workingQty = item.output || 1;
+      line.finalRate = line.amount / workingQty;
+
+      // Recalculate category totals
+      const MY_M_rate = item.lines
+        .filter((g) => g.category === "MY-M")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      const MY_F_rate = item.lines
+        .filter((g) => g.category === "MY-F")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      const MP_C_rate = item.lines
+        .filter((g) => g.category === "MP-C")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      const MP_NMR_rate = item.lines
+        .filter((g) => g.category === "MP-NMR")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      const MT_CM_rate = item.lines
+        .filter((g) => g.category === "MT-CM")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      const MT_BL_rate = item.lines
+        .filter((g) => g.category === "MT-BL")
+        .flatMap((g) => g.sub)
+        .reduce((sum, line) => sum + (line.finalRate || 0), 0);
+
+      item.MY_M_rate = MY_M_rate;
+      item.MY_F_rate = MY_F_rate;
+      item.MP_C_rate = MP_C_rate;
+      item.MP_NMR_rate = MP_NMR_rate;
+      item.MT_CM_rate = MT_CM_rate;
+      item.MT_BL_rate = MT_BL_rate;
+
+      // Recalculate finalRate
+      item.finalRate = MY_M_rate + MY_F_rate + MP_C_rate + MP_NMR_rate + MT_CM_rate + MT_BL_rate;
+
+      return copy;
+    });
+  };
+
+  const renderField = (value, onChange, type = "text") => {
+    if (!isEditing) {
+      return <span>{value || "-"}</span>;
+    }
+    return (
+      <input
+        type={type}
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-16 md:w-20 border rounded px-3 py-1.5 bg-transparent text-xs"
+      />
+    );
+  };
+
+const handleSave = async () => {
+  try {
+    setLoading(true);
+    setIsEditing(false);
+
+    const payload = rateAnalysis.map((item) => ({
+      itemNo: item.itemNo,
+      workItem: item.workItem,
+      unit: item.unit,
+      working_quantity: item.output,
+      category: "MAIN_ITEM", // Assuming all are MAIN_ITEM
+      MT_CM_rate: item.MT_CM_rate || 0,
+      MT_BL_rate: item.MT_BL_rate || 0,
+      MY_M_rate: item.MY_M_rate || 0,
+      MY_F_rate: item.MY_F_rate || 0,
+      MP_C_rate: item.MP_C_rate || 0,
+      MP_NMR_rate: item.MP_NMR_rate || 0,
+      final_rate: item.finalRate || 0,
+      lines: item.lines.flatMap((categoryGroup) =>
+        categoryGroup.sub.map((line) => ({
+          category: categoryGroup.category,
+          description: line.description,
+          unit: line.unit,
+          quantity: line.quantity,
+          rate: line.rate,
+          amount: line.amount,
+          total_rate: line.finalRate || 0,
+        }))
+      ),
+    }));
+    console.log(payload);
+    
+
+    //await axios.put(`${API}/rateanalysis/update/${tender_id}`, { work_items: payload });
+    toast.success("Rate Analysis updated successfully");
+    fetchRateAnalysis();
+  } catch (err) {
+    toast.error("Failed to save Rate Analysis");
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  const hasData = rateAnalysis && rateAnalysis.length > 0;
 
   return (
     <>
-      {/* Upload button */}
+      {/* Conditional buttons */}
       <div className="flex justify-end mb-2">
-        <button
-          type="button"
-          onClick={() => setShowUpload(true)}
-          className="flex items-center gap-1 dark:bg-layout-dark bg-white px-3 py-2 rounded-md text-sm shadow"
-        >
-          <TbFileExport size={18} />
-          <span>Upload RA</span>
-        </button>
+        {hasData && !isEditing && (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="flex items-center gap-1 dark:bg-layout-dark bg-white px-3 py-2 rounded-md text-sm shadow"
+          >
+            Edit
+          </button>
+        )}
+         {isEditing && (
+        <div className="flex justify-end gap-2 mt-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={loading}
+            className="px-3 py-1 text-sm rounded bg-emerald-600 text-white disabled:opacity-60"
+          >
+            {loading ? "Saving..." : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsEditing(false);
+              fetchRateAnalysis(); // Revert changes
+            }}
+            className="px-3 py-1 text-sm rounded bg-gray-500 text-white"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+        {!hasData && (
+          <button
+            type="button"
+            onClick={() => setShowUpload(true)}
+            className="flex items-center gap-1 dark:bg-layout-dark bg-white px-3 py-2 rounded-md text-sm shadow"
+          >
+            <TbFileExport size={18} />
+            <span>Upload RA</span>
+          </button>
+        )}
       </div>
 
       <div className="font-roboto-flex flex flex-col h-full">
@@ -132,7 +342,7 @@ const RateAnalysis = () => {
                       Loading rate analysis...
                     </td>
                   </tr>
-                ) : rateAnalysis && rateAnalysis.length > 0 ? (
+                ) : hasData ? (
                   rateAnalysis.map((workItem, index) => (
                     <React.Fragment key={workItem.itemNo || index}>
                       {/* Main row */}
@@ -147,8 +357,14 @@ const RateAnalysis = () => {
                           </div>
                         </td>
                         <td className="p-3 text-center">{workItem.unit || "-"}</td>
-                        <td className="p-3 text-right">{workItem.output ?? "-"}</td>
-                        <td className="p-3 text-right font-semibold">{workItem.finalRate ?? "-"}</td>
+                        <td className="p-3 text-right">
+                          {renderField(
+                            workItem.output,
+                            (val) => updateWorkItem(index, "output", val),
+                            "number"
+                          )}
+                        </td>
+                        <td className="p-3 text-right font-semibold">{workItem.finalRate?.toFixed(2) ?? "-"}</td>
                         <td className="p-3 text-center">
                           <button
                             type="button"
@@ -167,77 +383,117 @@ const RateAnalysis = () => {
                             <div className="rounded-md border border-gray-200 dark:border-border-dark-grey dark:bg-layout-dark bg-white shadow-sm">
                               {workItem.lines && workItem.lines.length > 0 ? (
                                 <div className="space-y-3 p-3">
-                                  <DetailHeaderRow />
+                                  <div className="grid grid-cols-6 gap-2 text-[11px] font-semibold bg-indigo-100 px-3 py-2 rounded-t-md dark:text-black">
+                                    <span>Description</span>
+                                    <span>Unit</span>
+                                    <span className="text-right">Quantity</span>
+                                    <span className="text-right">Rate</span>
+                                    <span className="text-right">Amount</span>
+                                    <span className="text-right">Rate / Unit</span>
+                                  </div>
 
-                                  {workItem.lines.map((categoryGroup) => (
-                                    <div
-                                      key={categoryGroup.category}
-                                      className="border border-gray-100 dark:border-border-dark-grey rounded-md overflow-hidden"
-                                    >
-                                      <div className="px-3 py-2 text-xs font-semibold bg-gray-100 dark:bg-gray-800 text-left">
-                                        {(() => {
-                                          switch (categoryGroup.category) {
-                                            case "MY-M":
-                                              return "Machinery (MY-M)";
-                                            case "MY-F":
-                                              return "Fuel (MY-F)";
-                                            case "MP-C":
-                                              return "Contractor (MP-C)";
-                                            case "MP-NMR":
-                                              return "NMR (MP-NMR)";
-                                            case "MT-CM":
-                                              return "Consumable (MT-CM)";
-                                            case "MT-BL":
-                                              return "Bulk (MT-BL)";
-                                            default:
-                                              return categoryGroup.category;
-                                          }
-                                        })()}
-                                      </div>
+                                  {workItem.lines.map((categoryGroup) => {
+                                    if (!categoryGroup || !categoryGroup.sub) return null;
 
-                                      <div className="divide-y divide-gray-100 dark:divide-border-dark-grey">
-                                        {categoryGroup.sub.map((line, idx2) => (
-                                          <div
-                                            key={idx2}
-                                            className="grid grid-cols-6 gap-2 px-3 py-1.5 text-[11px] md:text-xs bg-gray-50/60 dark:bg-layout-dark"
-                                          >
-                                            <span className="text-left">{line.description}</span>
-                                            <span>{line.unit || "-"}</span>
-                                            <span className="text-right">{line.quantity ?? "-"}</span>
-                                            <span className="text-right">{line.rate ?? "-"}</span>
-                                            <span className="text-right">{line.amount ?? "-"}</span>
-                                            <span className="text-right">{line.finalRate ?? "-"}</span>
-                                          </div>
-                                        ))}
-                                      </div>
+                                    return (
+                                      <div
+                                        key={categoryGroup.category}
+                                        className="border border-gray-100 dark:border-border-dark-grey rounded-md overflow-hidden"
+                                      >
+                                        <div className="px-3 py-2 text-xs font-semibold bg-gray-100 dark:bg-gray-800 text-left">
+                                          {(() => {
+                                            switch (categoryGroup.category) {
+                                              case "MY-M":
+                                                return "Machinery (MY-M)";
+                                              case "MY-F":
+                                                return "Fuel (MY-F)";
+                                              case "MP-C":
+                                                return "Contractor (MP-C)";
+                                              case "MP-NMR":
+                                                return "NMR (MP-NMR)";
+                                              case "MT-CM":
+                                                return "Consumable (MT-CM)";
+                                              case "MT-BL":
+                                                return "Bulk (MT-BL)";
+                                              default:
+                                                return categoryGroup.category;
+                                            }
+                                          })()}
+                                        </div>
 
-                                      {/* Show total rate for this category */}
-                                      <div className="px-3 py-2 text-xs bg-gray-50 dark:bg-gray-800 dark:text-black font-medium text-right">
-                                        {categoryGroup.category === "MY-M" && (
-                                          <span className="bg-yellow-200 py-1.5 px-3">Total Machinery Rate: {workItem.MY_M_rate || 0}</span>
-                                        )}
-                                        {categoryGroup.category === "MY-F" && (
-                                          <span className="bg-yellow-200 py-1.5 px-3">Total Fuel Rate: {workItem.MY_F_rate || 0}</span>
-                                        )}
-                                        {categoryGroup.category === "MP-C" && (
-                                          <span className="bg-yellow-200 py-1.5 px-3">Total Contractor Rate: {workItem.MP_C_rate || 0}</span>
-                                        )}
-                                        {categoryGroup.category === "MP-NMR" && (
-                                          <span className="bg-yellow-200 py-1.5 px-3">Total NMR Rate: {workItem.MP_NMR_rate || 0}</span>
-                                        )}
-                                        {categoryGroup.category === "MT-CM" && (
-                                          <span className="bg-yellow-200 py-1.5 px-3">Total Consumable Rate: {workItem.MT_CM_rate || 0}</span>
-                                        )}
-                                        {categoryGroup.category === "MT-BL" && (
-                                          <span className="bg-yellow-200 py-1.5 px-3">Total Bulk Rate: {workItem.MT_BL_rate || 0}</span>
-                                        )}
+                                        <div className="divide-y divide-gray-100 dark:divide-border-dark-grey">
+                                          {categoryGroup.sub.map((line, idx2) => (
+                                            <div
+                                              key={idx2}
+                                              className="grid grid-cols-6 gap-2 px-3 py-1.5 text-[11px] md:text-xs bg-gray-50/60 dark:bg-layout-dark"
+                                            >
+                                              <span className="text-left">
+                                                {renderField(
+                                                  line.description,
+                                                  (val) => updateLine(index, workItem.lines.indexOf(categoryGroup), idx2, "description", val)
+                                                )}
+                                              </span>
+                                              <span>{line.unit || "-"}</span>
+                                              <span className="text-right">
+                                                {renderField(
+                                                  line.quantity,
+                                                  (val) => updateLine(index, workItem.lines.indexOf(categoryGroup), idx2, "quantity", val),
+                                                  "number"
+                                                )}
+                                              </span>
+                                              <span className="text-right">
+                                                {renderField(
+                                                  line.rate,
+                                                  (val) => updateLine(index, workItem.lines.indexOf(categoryGroup), idx2, "rate", val),
+                                                  "number"
+                                                )}
+                                              </span>
+                                              <span className="text-right">{line.amount?.toFixed(2) || "-"}</span>
+                                              <span className="text-right">{line.finalRate?.toFixed(2) || "-"}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+
+                                        {/* Show total rate for this category */}
+                                        <div className="px-3 py-2 text-xs bg-gray-50 dark:bg-gray-800 dark:text-black font-medium text-right">
+                                          {categoryGroup.category === "MY-M" && (
+                                            <span className="bg-yellow-200 py-1.5 px-3">
+                                              Total Machinery Rate: {workItem.MY_M_rate?.toFixed(2) || 0}
+                                            </span>
+                                          )}
+                                          {categoryGroup.category === "MY-F" && (
+                                            <span className="bg-yellow-200 py-1.5 px-3">
+                                              Total Fuel Rate: {workItem.MY_F_rate?.toFixed(2) || 0}
+                                            </span>
+                                          )}
+                                          {categoryGroup.category === "MP-C" && (
+                                            <span className="bg-yellow-200 py-1.5 px-3">
+                                              Total Contractor Rate: {workItem.MP_C_rate?.toFixed(2) || 0}
+                                            </span>
+                                          )}
+                                          {categoryGroup.category === "MP-NMR" && (
+                                            <span className="bg-yellow-200 py-1.5 px-3">
+                                              Total NMR Rate: {workItem.MP_NMR_rate?.toFixed(2) || 0}
+                                            </span>
+                                          )}
+                                          {categoryGroup.category === "MT-CM" && (
+                                            <span className="bg-yellow-200 py-1.5 px-3">
+                                              Total Consumable Rate: {workItem.MT_CM_rate?.toFixed(2) || 0}
+                                            </span>
+                                          )}
+                                          {categoryGroup.category === "MT-BL" && (
+                                            <span className="bg-yellow-200 py-1.5 px-3">
+                                              Total Bulk Rate: {workItem.MT_BL_rate?.toFixed(2) || 0}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
 
                                   {/* Show final rate for the work item */}
                                   <div className="px-3 py-2 text-sm font-semibold bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-border-dark-grey text-right">
-                                    Final Rate: {workItem.finalRate}
+                                    Final Rate: {workItem.finalRate?.toFixed(2)}
                                   </div>
                                 </div>
                               ) : (
