@@ -11,6 +11,7 @@ const SiteOverHead = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [openSections, setOpenSections] = useState(new Set());
+  const [freezed, setFreezed] = useState(false);
 
   const [loading, setLoading] = useState(false);
 
@@ -20,9 +21,11 @@ const SiteOverHead = () => {
    const fetchData = async () => {
       try {
         const res = await axios.get(`${API}/siteoverhead/get/${tender_id}`);
-        const json = res.data;
+        setFreezed(res.data.freeze);
+        const json = res.data.siteOverhead;
         setData(json);
         setOpenSections(new Set((json.sections || []).map((s) => s.sno)));
+        
       } catch (err) {
         toast.error("Failed to fetch tenders");
       }
@@ -116,6 +119,7 @@ const renderField = (value, inputProps) => {
     return <div className="p-4 text-sm">Loading site overheads...</div>;
   }
 
+
   return (
     <div className="font-roboto-flex flex flex-col gap-4 h-full">
       {/* Top bar */}
@@ -123,7 +127,7 @@ const renderField = (value, inputProps) => {
         <h2 className="text-base font-semibold">Site Overheads</h2>
 
         {/* VIEW MODE: only Edit button */}
-        {!isEditing && (
+        {!isEditing && !freezed && (
           <button
             type="button"
             onClick={() => setIsEditing(true)}

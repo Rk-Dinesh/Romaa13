@@ -67,24 +67,24 @@ ABS010,MT-BL,Bricks,Nos,460,9
 ABS010,MY-F,Water,Lit,170,0.2
 ABS010,MY-F,Curing,Lit,100,0.2
 ABS010,MP-C,Brick Work,Cum,1,2925
-ABS011,MAIN_ITEM,Shuttering, Basement lvl Beams SC,Sqm,1,
+ABS011,MAIN_ITEM,Shuttering,Sqm,1,
 ABS011,MP-C,Shuttering,Sqm,1,613.32
-ABS011,MP-C,Scafolding,Sqm,1,107.60
-ABS012,MAIN_ITEM,Shuttering, Roof,Beams SC,Sqm,1,
-ABS012,MP-C,Shuttering,Sqm,1,645.60
-ABS012,MP-C,Scafolding,Sqm,1,107.60
-ABS013,MAIN_ITEM,Shuttering, Columns SC,Sqm,1,
+ABS011,MP-C,Scafolding,Sqm,1,107.6
+ABS012,MAIN_ITEM,Shuttering, Sqm,1,
+ABS012,MP-C,Shuttering,Sqm,1,645.6
+ABS012,MP-C,Scafolding,Sqm,1,107.6
+ABS013,MAIN_ITEM,Shuttering,Sqm,,
 ABS013,MP-C,Shuttering,Sqm,1,720.92
 ABS013,MP-C,Fixing,Nos,1,2000
-ABS013,MP-C,Scafolding,Sqm,1,107.60
+ABS013,MP-C,Scafolding,Sqm,1,107.6
 ABS014,MAIN_ITEM,TMT Steel,MT,1,
 ABS014,MT-CM,TMT Steel,MT,1,52000
 ABS014,MT-CM,Binding Wire,Kg,16,70
 ABS014,MT-CM,Cover Block,L.S,1,1200
 ABS014,MP-C,Steel,Qtl,1,1000
-ABS014,MP-C,Loading, Unloading,Qtl,1,50
-ABS015,MAIN_ITEM,Rolling Shutter,4.20,
-ABS015,MP-C,Rolling Shutter,Sqm,1,3873.60
+ABS014,MP-C,Loading,Qtl,1,50
+ABS015,MAIN_ITEM,Rolling Shutter,cv,4.2,
+ABS015,MP-C,Rolling Shutter,Sqm,1,3873.6
 ABS016,MAIN_ITEM,Air Inlet Window,Nos,1,
 ABS016,MP-C,Air inlet Window,Nos,1,1875
 ABS017,MAIN_ITEM,N Type Ventilator,Nos,1,
@@ -113,26 +113,26 @@ ABS020,MY-F,Water,Lit,4.5,0.2
 ABS020,MY-F,Curing,Lit,5,0.2
 ABS020,MP-C,Plastering,Sqm,1,236.72
 ABS021,MAIN_ITEM,Painting - Distember,Sqm,1,
-ABS021,MP-C,Painting Distember,Sqm,1,161.40
+ABS021,MP-C,Painting Distember,Sqm,1,161.4
 ABS022,MAIN_ITEM,Painting - Emulsion,Sqm,1,
 ABS022,MP-C,Emulsion,Sqm,1,182.92
 ABS023,MAIN_ITEM,Painting - Cement Paint,Sqm,1,
 ABS023,MP-C,Cement Paint,Sqm,1,172.16
-ABS024,MAIN_ITEM,C - Channel,Material,Kg,9.96,60
+ABS024,MAIN_ITEM,C - Channel,Kg,9.96,60
 ABS024,MP-C,Channel fixing including bolt fixing,Kg,9.96,35
-ABS026,MAIN_ITEM,GI Sheet - Roofing,Material,Sqm,1,450
+ABS026,MAIN_ITEM,GI Sheet - Roofing,Sqm,1,450
 ABS026,MP-C,GI Sheet Laying,Sqm,1,85
-ABS027,MAIN_ITEM,GI Sheet - Rigide,Material,Rmt,1,420
+ABS027,MAIN_ITEM,GI Sheet - Rigide,Rmt,1,420
 ABS027,MP-C,GI Sheet Laying,Rmt,1,80
-ABS028,MAIN_ITEM,Polycorbonate Sheet,Material,Sqm,1,600
+ABS028,MAIN_ITEM,Polycorbonate Sheet,Sqm,1,600
 ABS028,MP-C,Polycorbonate Sheet Laying,Sqm,1,85
-ABS029,MAIN_ITEM,GI Flat,Material,Kg,1.9,76
+ABS029,MAIN_ITEM,GI Flat,Kg,1.9,76
 ABS029,MP-C,GI Flat Fixing,Rmt,1,50
-ABS030,MAIN_ITEM,ISMB - Structural,Material,Kg,1.05,53
+ABS030,MAIN_ITEM,ISMB - Structural,Kg,1.05,53
 ABS030,MP-C,Fabrication,kg,1,25
-ABS031,MAIN_ITEM,ISMB - Structural,Material,Kg,1.05,52
+ABS031,MAIN_ITEM,ISMB - Structural,Kg,1.05,52
 ABS031,MP-C,Fabrication,kg,1,25
-ABS032,MAIN_ITEM,Msand laying,Material,MT,1.73,800
+ABS032,MAIN_ITEM,Msand laying,MT,1.73,800
 ABS032,MP-C,Laying,MT,1.73,200
 ABS033,MAIN_ITEM,RCC 11.53 - Basement Lvl Output for,Cum,20,
 ABS033,MT-CM,Cement,Bags,5,300
@@ -178,7 +178,7 @@ ABS036,MP-C,Mixing,Cum,1,1000
 ABS036,MP-C,Laying,Cum,1,750
 ABS036,MP-C,Curing,Cum,1,150
 ABS037,MAIN_ITEM,White Wash,Sqm,1,
-ABS037,MP-C,White Wash,Sqm,1,26.90
+ABS037,MP-C,White Wash,Sqm,1,26.9
 ABS038,MAIN_ITEM,Weathering Tile Output for,Sqm,1,
 ABS038,MT-CM,Cement,Bags,0.45,300
 ABS038,MT-CM,Msand,MT,0.17,1100
@@ -216,9 +216,9 @@ ABS047,MT-CM,Msand,MT,0.24,1100
 ABS047,MT-CM,Virtified Tile,Sqm,1,451.92
 ABS047,MY-F,Water,Lit,200,0.2
 ABS047,MP-C,Laying,Sqm,1,236.72
-ABS056,MAIN_ITEM,PVC Pipe Rain Water Material,110mm PVC Pipe,Rmt,1,166.67
+ABS056,MAIN_ITEM,PVC Pipe Rain Water Material,Rmt,1,166.67
 ABS056,MP-C,Pipe Fixing,Sqm,1,164
-ABS057,MAIN_ITEM,PVC Pipe Waste Line Material,110mm PVC Pipe,Rmt,1,166.67
+ABS057,MAIN_ITEM,PVC Pipe Waste Line Material,Rmt,1,166.67
 ABS057,MP-C,Pipe Fixing,Sqm,1,164
 ABS058,MAIN_ITEM,IWC,Nos,1,2000
 ABS058,MP-C,IWC Fixing,Nos,1,600
@@ -226,22 +226,22 @@ ABS059,MAIN_ITEM,Hand Washbasin,Nos,1,1800
 ABS059,MP-C,Wash basin Fixing,Nos,1,500
 ABS060,MAIN_ITEM,CI Man Hole Cover,Nos,1,1800
 ABS060,MP-C,Fixing,Nos,1,300
-ABS062,MAIN_ITEM,PVC Pipe Waste Line Material,25mm PVC Pipe,Rmt,1,58.33
-ABS062,MP-C,Pipe Fixing,Sqm,1,98.40
-ABS065,MAIN_ITEM,PVC Pipe Ventilator Shaft Material,110mm PVC Pipe,Rmt,1,166.67
+ABS062,MAIN_ITEM,PVC Pipe Waste Line Material,Rmt,1,58.33
+ABS062,MP-C,Pipe Fixing,Sqm,1,98.4
+ABS065,MAIN_ITEM,PVC Pipe Ventilator Shaft Material,Rmt,1,166.67
 ABS065,MP-C,Pipe Fixing,Sqm,1,164
-ABS066,MAIN_ITEM,Mastic Pad 12mm Thick,Material,Sqm,1,405.41
+ABS066,MAIN_ITEM,Mastic Pad 12mm Thick,Sqm,1,405.41
 ABS066,MP-C,Fixing,Sqm,1,133.33
 ABS067,MAIN_ITEM,MS Steel Gate,Kg,290.52,100
 ABS067,MP-C,MS gate,Kg,290.52,100
 ABS067,MAIN_ITEM,MS Steel Wicket Gate,Kg,48.42,100
 ABS067,MP-C,MS gate,Kg,48.42,100
-ABS082,MAIN_ITEM,4Sqmm3 Core Flat Cable,Material,Rmt,1,120
-ABS082,MP-C,Fixing,Rmt,1,65.60
-ABS083,MAIN_ITEM,32mm HDPE Pipe,Material,Rmt,1,50
-ABS083,MP-C,Fixing,Rmt,1,32.80
-ABS084,MAIN_ITEM,Nylone Rope,Material,Rmt,1,53
-ABS084,MP-C,Fixing,Rmt,1,16.40
+ABS082,MAIN_ITEM,4Sqmm3 Core Flat Cable,Rmt,1,120
+ABS082,MP-C,Fixing,Rmt,1,65.6
+ABS083,MAIN_ITEM,32mm HDPE Pipe,Rmt,1,50
+ABS083,MP-C,Fixing,Rmt,1,32.8
+ABS084,MAIN_ITEM,Nylone Rope,Rmt,1,53
+ABS084,MP-C,Fixing,Rmt,1,16.4
 ABS085,MAIN_ITEM,3HP Sub Motor,Nos,1,30000
 ABS085,MP-C,Fixing,Nos,1,5000
 ABS086,MAIN_ITEM,3 Phase Motor Panel Board,Nos,1,6000

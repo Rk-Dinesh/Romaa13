@@ -38,6 +38,7 @@ const RateAnalysis = () => {
   const [showUpload, setShowUpload] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [freezed, setFreezed] = useState(false);
 
   const toggleSection = (index) => {
     setOpenSections((prev) => {
@@ -73,6 +74,7 @@ const RateAnalysis = () => {
 
       setRateAnalysis(transformed);
       setOpenSections(new Set(transformed.map((_, i) => i)));
+      setFreezed(apiData?.freeze || false);
     } catch (err) {
       toast.error("Failed to fetch Rate Analysis");
       console.error(err);
@@ -269,7 +271,6 @@ rateAnalysis.forEach((item) => {
 });
 
 
-    console.log(payload);
     
 
     await axios.put(`${API}/rateanalysis/updaterateanalysis/${tender_id}`, { work_items: payload });
@@ -286,11 +287,12 @@ rateAnalysis.forEach((item) => {
 
   const hasData = rateAnalysis && rateAnalysis.length > 0;
 
+
   return (
     <>
       {/* Conditional buttons */}
       <div className="flex justify-end mb-2">
-        {hasData && !isEditing && (
+        {hasData && !isEditing && !freezed && (
           <button
             type="button"
             onClick={() => setIsEditing(true)}

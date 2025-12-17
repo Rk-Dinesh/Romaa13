@@ -10,6 +10,7 @@ const Machines = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("machinery");
+  const [freezed, setFreezed] = useState(false);
 
   // Edit States
   const [isEditing, setIsEditing] = useState(false);
@@ -22,8 +23,13 @@ const Machines = () => {
     if (!tender_id) return;
     setLoading(true);
     try {
-      const res = await axios.get(`${API}/raquantities/quantites/${tender_id}/${activeTab}`);
-      setItems(Array.isArray(res.data) ? res.data : (res.data.data || []));
+      const res = await axios.get(
+        `${API}/raquantities/quantites/${tender_id}/${activeTab}`
+      );
+      const { data, freeze } = res.data || {};
+      setFreezed?.(!!freeze);
+      setItems(Array.isArray(data) ? data : []);
+
     } catch (err) {
       console.error(err);
       toast.error(`Error fetching ${activeTab} data`);
@@ -31,6 +37,7 @@ const Machines = () => {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     fetchMachines();
@@ -47,30 +54,42 @@ const Machines = () => {
       const val = parseFloat(value) || 0;
       item[field] = val;
 
-      // Recalculate Row Totals
-      const qty = field === 'total_item_quantity' ? val : (parseFloat(item.total_item_quantity) || 0);
-      const rate = field === 'unit_rate' ? val : (parseFloat(item.unit_rate) || 0);
-      const tax = field === 'tax_amount' ? val : (parseFloat(item.tax_amount) || 0);
+      // Recalculate derived fields
+      const qty = item.total_item_quantity || 0;
+      const rate = item.unit_rate || 0;
+      const taxPercent = item.tax_percent || 0;
+      const escalationPercent = item.escalation_percent || 0;
 
-      item.total_amount = (qty * rate) + tax;
+
+      const totalAmount = rate * qty;
+      const taxAmount = totalAmount * (taxPercent / 100);
+      const escalationAmount = totalAmount * (escalationPercent / 100);
+      const finalAmount = totalAmount + taxAmount + escalationAmount;
+
+      // Update item with calculated values
+      item.tax_amount = Number(taxAmount.toFixed(2));
+      item.escalation_amount = Number(escalationAmount.toFixed(2));
+      item.total_amount = Number(totalAmount.toFixed(2));
+      item.final_amount = Number(finalAmount.toFixed(2)); // final amount = total amount
 
       copy[index] = item;
       return copy;
     });
   };
 
+
   const handleSave = async () => {
     try {
       setLoading(true);
       setIsSaving(true);
-      
+
       const payload = {
-         tender_id,
-         type: activeTab,
-         items: items
+        tender_id,
+        type: activeTab,
+        items: items
       };
 
-      const res = await axios.put(`${API}/raquantities/update/${tender_id}/${activeTab}`, payload);
+      const res = await axios.put(`${API}/raquantities/quantites/update/${tender_id}/${activeTab}`, payload);
 
       if (res.status === 200) {
         toast.success(`${activeTab} updated successfully`);
@@ -92,8 +111,8 @@ const Machines = () => {
       return (
         <span>
           {/* Check if it's a number to format, else string */}
-          {Number.isFinite(Number(value)) 
-            ? Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 }) 
+          {Number.isFinite(Number(value))
+            ? Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })
             : value || "-"}
         </span>
       );
@@ -108,35 +127,34 @@ const Machines = () => {
     );
   };
 
-  // --- TOTALS CALCULATION ---
   const totalCost = useMemo(() => items.reduce((acc, curr) => acc + (parseFloat(curr.total_amount) || 0), 0), [items]);
 
   return (
     <div className="font-roboto-flex flex flex-col gap-4 h-full p-2">
 
-       <div className="flex gap-2">
-              <button 
-                onClick={() => !isEditing && setActiveTab("machinery")}
-                className={`text-xs px-3 py-1.5 rounded border ${activeTab === 'machinery' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-50 text-gray-600'}`}
-              >
-                 Machinery
-              </button>
-              <button 
-                 onClick={() => !isEditing && setActiveTab("fuel")}
-                 className={`text-xs px-3 py-1.5 rounded border ${activeTab === 'fuel' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-gray-50 text-gray-600'}`}
-              >
-                 Fuel
-              </button>
-           </div>
-      
+      <div className="flex gap-2">
+        <button
+          onClick={() => !isEditing && setActiveTab("machinery")}
+          className={`text-xs px-3 py-1.5 rounded border ${activeTab === 'machinery' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-50 text-gray-600'}`}
+        >
+          Machinery
+        </button>
+        <button
+          onClick={() => !isEditing && setActiveTab("fuel")}
+          className={`text-xs px-3 py-1.5 rounded border ${activeTab === 'fuel' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-gray-50 text-gray-600'}`}
+        >
+          Fuel
+        </button>
+      </div>
+
       {/* 1. TOP BAR: Title + Edit/Save Buttons */}
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-            Resource Analysis: {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+          Resource Analysis: {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
         </h2>
 
         {/* VIEW MODE: Edit button */}
-        {/* {!isEditing && (
+        {!isEditing && !freezed && (
           <button
             type="button"
             onClick={() => setIsEditing(true)}
@@ -144,7 +162,7 @@ const Machines = () => {
           >
             Edit
           </button>
-        )} */}
+        )}
 
         {/* EDIT MODE: Save + Cancel */}
         {isEditing && (
@@ -174,106 +192,115 @@ const Machines = () => {
 
       {/* 3. SECTION CARD (The Table) */}
       <div className="bg-white dark:bg-layout-dark rounded-md shadow border border-gray-200 dark:border-border-dark-grey overflow-hidden">
-        
+
         {/* Card Header (Like Section Title) */}
         <div className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-overall_bg-dark border-b border-gray-200 dark:border-border-dark-grey">
-           <span className="text-sm font-semibold flex items-center gap-2 py-1.5">
-              {/* {activeTab === 'machinery' ? <FaTruckMonster className="text-gray-400"/> : <FaGasPump className="text-gray-400"/>} */}
-              {activeTab === 'machinery' ? ' Machinery ' : ' Fuel '}
-           </span>
-           <span className="text-xs text-gray-500 dark:text-white">
-              {items.length} Records found
-           </span>
+          <span className="text-sm font-semibold flex items-center gap-2 py-1.5">
+            {/* {activeTab === 'machinery' ? <FaTruckMonster className="text-gray-400"/> : <FaGasPump className="text-gray-400"/>} */}
+            {activeTab === 'machinery' ? ' Machinery ' : ' Fuel '}
+          </span>
+          <span className="text-xs text-gray-500 dark:text-white">
+            {items.length} Records found
+          </span>
         </div>
 
         {/* Content Area */}
         {loading ? (
-             <div className="p-8 text-center text-xs text-gray-500">Loading data...</div>
+          <div className="p-8 text-center text-xs text-gray-500">Loading data...</div>
         ) : items.length === 0 ? (
-             <div className="p-8 text-center text-xs text-gray-500">No records found.</div>
+          <div className="p-8 text-center text-xs text-gray-500">No records found.</div>
         ) : (
-            <div className="px-0 pb-0 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-border-dark-grey">
-                  <tr>
-                     <th className="p-2 text-left font-semibold text-gray-600 dark:text-white">SI.No</th>
-                    <th className="p-2 text-left font-semibold text-gray-600 dark:text-white">Item Description</th>
-                    <th className="p-2 text-center font-semibold text-gray-600 dark:text-white">Unit</th>
-                    <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Qty</th>
-                    <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Rate</th>
-                    <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Tax</th>
-                    <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Total Amount</th>
-                    <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Var %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, index) => (
-                    <tr 
-                        key={item._id || index} 
-                        className="border-b border-gray-100 dark:border-border-dark-grey last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                       <td className="p-2.5 text-left align-middle">
-                         <div className="font-medium text-gray-700 dark:text-gray-200 pl-2">
-                            {index + 1 || "-"}
-                         </div>
-                      </td>
-                      {/* Description */}
-                      <td className="p-2.5 text-left align-middle">
-                         <div className="font-medium text-gray-700 dark:text-gray-200">
-                            {item.item_description || "-"}
-                         </div>
-                      </td>
+          <div className="px-0 pb-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-border-dark-grey">
+                <tr>
+                  <th className="p-2 text-left font-semibold text-gray-600 dark:text-white">SI.No</th>
+                  <th className="p-2 text-left font-semibold text-gray-600 dark:text-white">Item Description</th>
+                  <th className="p-2 text-center font-semibold text-gray-600 dark:text-white">Unit</th>
+                  <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Qty</th>
+                  <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Rate</th>
+                  <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Tax</th>
+                  <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Total Amount</th>
+                  <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Tax Amount</th>
+                  <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Final Amount</th>
+                  {/* <th className="p-2 text-right font-semibold text-gray-600 dark:text-white">Var %</th> */}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, index) => (
+                  <tr
+                    key={item._id || index}
+                    className="border-b border-gray-100 dark:border-border-dark-grey last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <td className="p-2.5 text-left align-middle">
+                      <div className="font-medium text-gray-700 dark:text-gray-200 pl-2">
+                        {index + 1 || "-"}
+                      </div>
+                    </td>
+                    {/* Description */}
+                    <td className="p-2.5 text-left align-middle">
+                      <div className="font-medium text-gray-700 dark:text-gray-200">
+                        {item.item_description || "-"}
+                      </div>
+                    </td>
 
-                      {/* Unit */}
-                      <td className="p-2.5 text-center align-middle text-gray-500">
-                         {item.unit || "-"}
-                      </td>
+                    {/* Unit */}
+                    <td className="p-2.5 text-center align-middle text-gray-500">
+                      {item.unit || "-"}
+                    </td>
 
-                      {/* Qty (Editable) */}
-                      <td className="p-2.5 text-right align-middle">
-                        {renderField(item.total_item_quantity, {
-                           type: "number",
-                           onChange: (e) => updateItem(index, 'total_item_quantity', e.target.value)
-                        })}
-                      </td>
+                    {/* Qty (Editable) */}
+                    <td className="p-2.5 text-right align-middle">
+                      {item.total_item_quantity || "-"}
+                    </td>
 
-                      {/* Rate (Editable) */}
-                      <td className="p-2.5 text-right align-middle ">
-                        {renderField(item.unit_rate, {
-                           type: "number",
-                           onChange: (e) => updateItem(index, 'unit_rate', e.target.value)
-                        })}
-                      </td>
+                    {/* Rate (Editable) */}
+                    <td className="p-2.5 text-right align-middle ">
+                      {renderField(item.unit_rate, {
+                        type: "number",
+                        onChange: (e) => updateItem(index, 'unit_rate', e.target.value)
+                      })}
+                    </td>
 
-                      {/* Tax (Editable) */}
-                      <td className="p-2.5 text-right align-middle text-gray-500">
-                        {renderField(item.tax_amount, {
-                           type: "number",
-                           onChange: (e) => updateItem(index, 'tax_amount', e.target.value)
-                        })}
-                      </td>
+                    {/* Tax (Editable) */}
+                    <td className="p-2.5 text-right align-middle text-gray-500">
+                      {renderField(item.tax_percent, {
+                        type: "number",
+                        onChange: (e) => updateItem(index, 'tax_percent', e.target.value)
+                      })}
+                    </td>
 
-                      {/* Total Amount (Calculated) */}
-                      <td className="p-2.5 text-right align-middle font-medium ">
-                         ₹ {Number(item.total_amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                      </td>
+                    {/* Total Amount (Calculated) */}
+                    <td className="p-2.5 text-right align-middle font-medium ">
+                      ₹ {Number(item.total_amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </td>
 
-                      {/* Variance % (Read only) */}
-                      <td className="p-2.5 text-right align-middle">
+                    {/* Tax Amount (Calculated) */}
+                    <td className="p-2.5 text-right align-middle font-medium ">
+                      ₹ {Number(item.tax_amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </td>
+
+                    {/* Tax Amount (Calculated) */}
+                    <td className="p-2.5 text-right align-middle font-medium ">
+                      ₹ {Number(item.final_amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </td>
+
+                    {/* Variance % (Read only) */}
+                    {/* <td className="p-2.5 text-right align-middle">
                          <span className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
                             {Number(item.percentage_value_of_material).toFixed(2)}%
                          </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              
-              {/* Table Footer / Summary */}
-              <div className="p-2 bg-gray-50 border-t border-gray-200 text-xs text-right text-gray-600 font-medium dark:bg-layout-dark dark:text-white">
-                  Subtotal: ₹ {totalCost.toLocaleString('en-IN')} | {toLakhs(totalCost).toFixed(2)} L
-              </div>
+                      </td> */}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Table Footer / Summary */}
+            <div className="p-2 bg-gray-50 border-t border-gray-200 text-xs text-right text-gray-600 font-medium dark:bg-layout-dark dark:text-white">
+              Subtotal: ₹ {totalCost.toLocaleString('en-IN')} | {toLakhs(totalCost).toFixed(2)} L
             </div>
+          </div>
         )}
       </div>
 
