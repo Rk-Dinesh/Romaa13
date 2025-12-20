@@ -14,8 +14,8 @@ const customerColumns = [
   { label: "Item Description", key: "description" },
   { label: "Quantity", key: "quantity" },
   { label: "Units", key: "unit" },
-  { label: "Final Rate", key: "zero_cost_unit_rate" },
-  { label: "Amount", key: "zero_cost_final_amount" },
+  { label: "Final Rate", key: "n_rate",formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
+  { label: "Amount", key: "n_amount",formatter: (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(value) },
 ];
 
 const ZeroCost = () => {
@@ -72,14 +72,14 @@ const ZeroCost = () => {
       columns={customerColumns}
      // EditModal={true}       
       exportModal={false}
-      DeleteModal={DeleteModal}
-      deletetitle="Zero Cost"
+     // DeleteModal={DeleteModal}
+     // deletetitle="Zero Cost"
       totalPages={totalPages}
       currentPage={currentPage}
       setCurrentPage={setCurrentPage}
       onUpdated={fetchZeroCost}
       onSuccess={fetchZeroCost}
-      onDelete={handleDeleteZeroCostItem}
+      //onDelete={handleDeleteZeroCostItem}
       idKey="item_code"
   
     />

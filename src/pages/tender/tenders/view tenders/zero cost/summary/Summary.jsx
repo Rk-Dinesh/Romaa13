@@ -55,6 +55,10 @@ const Summary = () => {
       <div className="dark:bg-layout-dark bg-white p-4 rounded-lg space-y-2 text-sm">
         <p className="font-semibold">Zero Cost Estimate - Summary</p>
         <div className="grid grid-cols-12 gap-1 items-center">
+           <p className="col-span-4 font-medium">Tender Name</p>
+          <p className="col-span-8 text-xs opacity-50">
+            {tenderDetails.tender_name}
+          </p>
           <p className="col-span-4 font-medium">Project</p>
           <p className="col-span-8 text-xs opacity-50">
             {tenderDetails.tender_project_name}
@@ -163,7 +167,7 @@ const Summary = () => {
                   ESCALATION BENEFITS @ {summaryData.escalation_benefits_percentage}%
                 </td>
                 <td className="px-4 py-2 text-right font-semibold">
-                  ₹{fmt(0)}
+                  {summaryData.escalation_benefits_percentage}%
                 </td>
               </tr>
 

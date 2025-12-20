@@ -112,6 +112,7 @@ const TenderOverView = () => {
           label: "Tender Value",
           value: data.tenderDetails?.tender_value ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(data.tenderDetails?.tender_value) : "-",
         },
+        {label:"Agreement Value",value:data.tenderDetails?.agreement_value ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(data.tenderDetails?.agreement_value) : "-"}
       ]);
 
       setTenderProcessState(

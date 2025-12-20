@@ -1,25 +1,48 @@
-import { GeneralAbstractdata } from "../../../../components/Data";
+
+import axios from "axios";
+import { useEffect, useState } from "react";
 import Table from "../../../../components/Table";
+import { API } from "../../../../constant";
+import { useProject } from "../../ProjectContext";
 
 const Columns = [
-  { label: "Item Description", key: "itemdesc" },
-  { label: "Quantity", key: "quantity" },
-  { label: "Unit", key: "unit" },
+  { label: "Abstract ", key: "heading" },
   {
-    label: "Rate",
-    key: "rate",
+    label: "Abstract Amount ",
+    key: "total_amount",
+    formatter: (value) =>
+      new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0,
+        minimumFractionDigits: 0,
+      }).format(value),
   },
-  { label: "Amount", key: "amount" },
 ];
 
 const GeneralAbstract = () => {
+  const { tenderId } = useProject();
+  const [generalAbstractdata, setGeneralAbstractdata] = useState([]);
+  const getGeneralAbstractdata = async () => {
+    try {
+      const res = await axios.get(
+        `${API}/detailedestimate/getgeneralabstract?tender_id=${tenderId}`
+      );
+      setGeneralAbstractdata(res.data.data);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+  useEffect(() => {
+    getGeneralAbstractdata();
+  }, []);
   return (
     <Table
       contentMarginTop="mt-0"
-      endpoint={GeneralAbstractdata}
+      endpoint={generalAbstractdata}
       columns={Columns}
-      routepoint={"Viewgs"}
       exportModal={false}
+      pagination={false}
     />
   );
 };

@@ -33,15 +33,16 @@ const DetailedEstimate = () => {
       if (res.data.status && res.data.data.length > 0) {
         const dynamicTabs = res.data.data.flatMap((item, index) => [
           {
-            id: `${item.heading}-det-${index}`,
-            label: `${item.heading} Detailed`,
-            component: <NewInletDet name={item.detailedKey} />,
-          },
-          {
             id: `${item.heading}-abs-${index}`,
             label: `${item.heading} Abstract`,
             component: <NewInletAbs name={item.abstractKey} />,
           },
+          {
+            id: `${item.heading}-det-${index}`,
+            label: `${item.heading} Detailed`,
+            component: <NewInletDet name={item.detailedKey} />,
+          },
+          
         ]);
 
         setTabs((prev) => [
