@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, addMonths, subMonths, differenceInCalendarDays, addDays, isWithinInterval, max, min, getDate } from "date-fns";
-import { ChevronLeft, ChevronRight, Save, Calendar as CalendarIcon, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Save, Calendar as CalendarIcon, Loader2, Edit2, Lock } from "lucide-react";
 import { API } from "../../../../../../constant";
 import axios from "axios";
 import { useProject } from "../../../../ProjectContext";
@@ -75,6 +75,11 @@ const DailyProjects = () => {
   const [updates, setUpdates] = useState({}); 
   const [revisedDateUpdates, setRevisedDateUpdates] = useState({}); 
   const [startDateUpdates, setStartDateUpdates] = useState({}); 
+  
+  // --- NEW: Edit Mode State ---
+  const [isEditing, setIsEditing] = useState(false);
+
+  const scrollContainerRef = useRef(null);
 
   const fetchWBS = async () => {
     if (!tenderId) return;
@@ -96,10 +101,16 @@ const DailyProjects = () => {
     fetchWBS();
   }, [tenderId]);
 
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = 0;
+    }
+  }, [currentDate]);
+
   const daysInMonth = useMemo(() => eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(currentDate) }), [currentDate]);
 
-  const handlePrevMonth = () => setCurrentDate(subMonths(currentDate, 1));
-  const handleNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
+  const handlePrevMonth = () => setCurrentDate(prev => startOfMonth(subMonths(prev, 1)));
+  const handleNextMonth = () => setCurrentDate(prev => startOfMonth(addMonths(prev, 1)));
 
   const handleInputChange = (wbsId, dateStr, value) => {
     setUpdates(prev => ({ ...prev, [`${wbsId}-${dateStr}`]: value }));
@@ -108,44 +119,63 @@ const DailyProjects = () => {
   const getRevisedDate = (item) => revisedDateUpdates[item.wbs_id] || item.revised_end_date;
   const getStartDate = (item) => startDateUpdates[item.wbs_id] || item.start_date;
 
-  // --- SMART DOUBLE CLICK HANDLER ---
+  // --- HELPER: Clear Input Values for a Date Range ---
+  const clearValuesInRange = (wbsId, rangeStart, rangeEnd) => {
+    const datesToClear = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
+    
+    setUpdates(prev => {
+      const newUpdates = { ...prev };
+      datesToClear.forEach(date => {
+        const key = `${wbsId}-${date.toISOString()}`;
+        delete newUpdates[key]; 
+      });
+      return newUpdates;
+    });
+  };
+
+  // --- SMART DOUBLE CLICK HANDLER (Now checks isEditing) ---
   const handleCellDoubleClick = (item, dateStr) => {
+    if (!isEditing) return; // Prevent changes if not in edit mode
+
     const clickedDate = parseISO(dateStr);
     const currentStart = parseISO(getStartDate(item));
     const currentRevisedEnd = parseISO(getRevisedDate(item));
     const originalEnd = parseISO(item.original_end_date);
 
-    // 1. EXTEND: Clicked AFTER current Revised End (e.g. Current=18, Click=20)
+    // 1. EXTEND
     if (clickedDate > currentRevisedEnd) {
       setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
       toast.info(`End Date extended to ${format(clickedDate, "dd MMM")}`);
       return;
     }
 
-    // 2. REVERT TO ORIGINAL END (The specific request): 
-    // Condition: Revised is extended (> Original) AND user clicked exactly ON Original End
+    // 2. REVERT TO ORIGINAL END
     if (currentRevisedEnd > originalEnd && isSameDay(clickedDate, originalEnd)) {
-       if (window.confirm(`Revert Revised Date back to Original End Date (${format(clickedDate, "dd MMM")})?`)) {
+       if (window.confirm(`Revert Revised Date back to Original End Date (${format(clickedDate, "dd MMM")})?\nThis will clear inputs after this date.`)) {
+          clearValuesInRange(item.wbs_id, addDays(originalEnd, 1), currentRevisedEnd);
           setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
-          toast.info(`Revised Date reset to Original End Date`);
+          toast.info(`Revised Date reset & inputs cleared`);
        }
        return;
     }
 
-    // 3. REDUCE REVISED END: Clicked BETWEEN Original End and Revised End (e.g. Orig=15, Rev=18, Click=16)
+    // 3. REDUCE REVISED END
     if (clickedDate > originalEnd && clickedDate < currentRevisedEnd) {
-      if (window.confirm(`Reduce Revised End Date to ${format(clickedDate, "dd MMM")}?`)) {
+      if (window.confirm(`Reduce Revised End Date to ${format(clickedDate, "dd MMM")}?\nThis will clear inputs after this date.`)) {
+        clearValuesInRange(item.wbs_id, addDays(clickedDate, 1), currentRevisedEnd);
         setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
-        toast.info(`End Date reduced to ${format(clickedDate, "dd MMM")}`);
+        toast.info(`End Date reduced & inputs cleared`);
       }
       return;
     }
 
-    // 4. SHIFT START DATE: Clicked strictly BETWEEN Start and Original End (e.g. Start=1, Orig=15, Click=3)
+    // 4. SHIFT START DATE
     if (clickedDate > currentStart && clickedDate < originalEnd) {
       const diffDays = differenceInCalendarDays(clickedDate, currentStart);
       
-      if (window.confirm(`Move Start Date to ${format(clickedDate, 'dd MMM')}?\n(This skips ${diffDays} days)`)) {
+      if (window.confirm(`Move Start Date to ${format(clickedDate, 'dd MMM')}?\n(This skips ${diffDays} days and will clear their inputs)`)) {
+        clearValuesInRange(item.wbs_id, currentStart, addDays(clickedDate, -1));
+
         const shouldExtendEnd = window.confirm(
           `You skipped ${diffDays} days.\n\nClick OK to ADD these days to the Revised End Date.\nClick Cancel to KEEP the current End Date (Shrink Duration).`
         );
@@ -155,26 +185,35 @@ const DailyProjects = () => {
         if (shouldExtendEnd) {
           const newEndDate = addDays(currentRevisedEnd, diffDays);
           setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: newEndDate.toISOString() }));
-          toast.success(`Start moved & End extended by ${diffDays} days`);
+          toast.success(`Start moved, inputs cleared & End extended`);
         } else {
-          toast.success(`Start moved (Duration reduced)`);
+          toast.success(`Start moved & inputs cleared`);
         }
       }
     }
   };
 
-  const handleSave = async () => {
-    console.log({ 
-      daily_updates: updates, 
-      revised_end_dates: revisedDateUpdates,
-      new_start_dates: startDateUpdates
-    });
-    toast.success("Schedule Updated Successfully");
+  // --- TOGGLE HANDLER ---
+  const handleEditToggle = async () => {
+    if (isEditing) {
+        // We are currently editing, so this is the SAVE action
+        console.log({ 
+            daily_updates: updates, 
+            revised_end_dates: revisedDateUpdates,
+            new_start_dates: startDateUpdates
+        });
+        toast.success("Schedule Saved Successfully");
+        setIsEditing(false);
+    } else {
+        // We are viewing, so this is the START EDIT action
+        setIsEditing(true);
+        toast.info("Edit Mode Enabled");
+    }
   };
 
   const getInputValue = (item, dayStr) => {
     const key = `${item.wbs_id}-${dayStr}`;
-    if (updates[key] !== undefined) return updates[key];
+    if (updates.hasOwnProperty(key)) return updates[key];
     const dayRecord = item.daily.find(d => isSameDay(parseISO(d.date), parseISO(dayStr)));
     return dayRecord ? dayRecord.quantity : "";
   };
@@ -190,19 +229,31 @@ const DailyProjects = () => {
             <CalendarIcon size={20} />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-gray-800 dark:text-white">Daily Progress</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Double-click empty cell space to adjust Start or End</p>
+            <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                Daily Progress
+                {!isEditing && <Lock size={14} className="text-gray-400" />}
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+                {isEditing ? "Double-click cells to adjust dates" : "Click 'Edit' to make changes"}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="flex items-center bg-white dark:bg-gray-700 rounded-md shadow-sm border border-gray-200 dark:border-gray-600">
             <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300"><ChevronLeft size={18} /></button>
-            <span className="px-4 font-semibold text-sm w-32 text-center text-gray-700 dark:text-gray-200">{format(currentDate, "MMMM yyyy")}</span>
+            <span className="px-4 font-semibold text-sm w-32 text-center text-gray-700 dark:text-gray-200 min-w-[140px]">{format(currentDate, "MMMM yyyy")}</span>
             <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300"><ChevronRight size={18} /></button>
           </div>
-          <button onClick={handleSave} disabled={loading} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50">
-            {loading ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Save
+          
+          {/* --- Edit / Save Button --- */}
+          <button 
+            onClick={handleEditToggle} 
+            disabled={loading} 
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 ${isEditing ? "bg-green-600 hover:bg-green-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
+          >
+            {loading ? <Loader2 className="animate-spin" size={16} /> : (isEditing ? <Save size={16} /> : <Edit2 size={16} />)} 
+            {isEditing ? "Save" : "Edit"}
           </button>
         </div>
       </div>
@@ -217,7 +268,7 @@ const DailyProjects = () => {
       </div>
 
       {/* --- Matrix --- */}
-      <div className="flex-1 overflow-auto relative">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto relative">
         {loading && (
           <div className="absolute inset-0 z-50 bg-white/50 dark:bg-gray-900/50 flex items-center justify-center backdrop-blur-sm">
             <Loader2 className="animate-spin text-blue-600" size={32} />
@@ -281,7 +332,6 @@ const DailyProjects = () => {
                     const isOriginalEnd = isSameDay(parsedOriginalEnd, dayParsed);
                     const isRevisedEnd = isSameDay(parsedRevisedEnd, dayParsed);
 
-                    // WEEKLY PLAN 
                     const weeklyPlanData = getWeeklyPlanForLabel(item, dayParsed, currentStartDate, currentRevisedDate, currentDate);
 
                     // Styles
@@ -290,21 +340,22 @@ const DailyProjects = () => {
                     const bgClass = isEvenWeek ? "bg-gray-50/30 dark:bg-gray-800/20" : "bg-white dark:bg-gray-900";
 
                     let cellClasses = `border-r border-gray-100 dark:border-gray-800 p-1 relative min-h-[50px] align-middle cursor-pointer ${bgClass}`;
-                    let inputClasses = "w-full h-8 text-center text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all mt-4 ";
+                    // Added: text-right, disabled styling logic
+                    let inputClasses = `w-full h-8 text-center text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all mt-4 ${!isEditing || !isActiveRange ? "bg-gray-50 text-gray-500 cursor-not-allowed" : "bg-white text-gray-800"}`;
 
-                    if (isStart) inputClasses += "border-green-400 bg-green-50 dark:bg-green-900/20 text-green-700 ";
-                    else if (isRevisedEnd) inputClasses += "border-purple-400 bg-purple-50 dark:bg-purple-900/20 text-purple-700 ";
-                    else if (isOriginalEnd) inputClasses += "border-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 ";
-                    else if (isActiveRange) inputClasses += "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white ";
-                    else inputClasses += "bg-transparent border-none text-transparent pointer-events-none";
+                    if (isStart) inputClasses += " border-green-400 bg-green-50 dark:bg-green-900/20 text-green-700 ";
+                    else if (isRevisedEnd) inputClasses += " border-purple-400 bg-purple-50 dark:bg-purple-900/20 text-purple-700 ";
+                    else if (isOriginalEnd) inputClasses += " border-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 ";
+                    else if (isActiveRange) inputClasses += " border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white ";
+                    else inputClasses += " bg-transparent border-none text-transparent pointer-events-none";
 
                     return (
                       <td 
                         key={dayStr} 
                         className={cellClasses}
-                        onDoubleClick={() => handleCellDoubleClick(item, dayStr)} // CLICK ON CELL TRIGGERS LOGIC
+                        onDoubleClick={() => handleCellDoubleClick(item, dayStr)} 
                       >
-                         {/* --- Weekly Plan Badge (z-30) --- */}
+                         {/* --- Weekly Plan Badge (z-20) --- */}
                          {weeklyPlanData && (
                             <div className="absolute top-0 left-0 right-0 z-20 flex justify-center mt-1 pointer-events-none">
                               <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 border border-blue-200 dark:border-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
@@ -325,12 +376,13 @@ const DailyProjects = () => {
                         <input
                           type="number"
                           step="0.01"
-                          disabled={!isActiveRange}
+                          // Disabled if NOT editing OR NOT in active range
+                          disabled={!isEditing || !isActiveRange}
                           placeholder={isActiveRange ? "-" : ""}
                           className={inputClasses}
                           value={getInputValue(item, dayStr)}
                           onChange={(e) => handleInputChange(item.wbs_id, dayStr, e.target.value)}
-                          onDoubleClick={(e) => e.stopPropagation()} // STOP PROPAGATION HERE
+                          onDoubleClick={(e) => e.stopPropagation()} 
                         />
                       </td>
                     );
