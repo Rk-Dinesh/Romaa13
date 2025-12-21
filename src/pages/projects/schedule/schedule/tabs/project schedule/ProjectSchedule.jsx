@@ -31,8 +31,13 @@ const ProjectSchedule = () => {
     if (!tenderId) return;
     setLoading(true);
     try {
+      // Matches the new API route: router.get("/get-schedule/:tender_id", getSchedule);
       const res = await axios.get(`${API}/schedule/get-schedule/${tenderId}`);
-      setItems(res.data.data || []);
+      if (res.data && res.data.data) {
+        setItems(res.data.data.items);
+      } else {
+        setItems([]);
+      }
     } catch (err) {
       console.error(err);
       toast.error("Failed to fetch Schedule items");

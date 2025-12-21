@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, addMonths, subMonths, differenceInCalendarDays, addDays, isWithinInterval, max, min, getDate, startOfDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, subMonths, addMonths, differenceInCalendarDays, addDays, isWithinInterval, max, min, getDate, startOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Save, Calendar as CalendarIcon, Loader2, Edit2, Lock } from "lucide-react";
 import { API } from "../../../../../../constant";
 import axios from "axios";
@@ -11,9 +11,9 @@ const processData = (items) => {
   if (!Array.isArray(items)) return [];
 
   return items.map(item => {
-    const sortedDaily = [...item.daily].sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
+    const sortedDaily = Array.isArray(item.daily) 
+      ? [...item.daily].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      : [];
 
     const originalStart = item.start_date || (sortedDaily.length > 0 ? sortedDaily[0].date : new Date().toISOString());
     const originalEnd = item.end_date || (sortedDaily.length > 0 ? sortedDaily[sortedDaily.length - 1].date : new Date().toISOString());
@@ -29,7 +29,7 @@ const processData = (items) => {
   });
 };
 
-// --- Helper: Calculate Single Week Plan ---
+// --- Helper: Calculate Single Week Plan Badge ---
 const getWeeklyPlanForLabel = (item, weekStartDay, currentStartDate, currentRevisedEndDate, monthStart) => {
   const startDate = parseISO(currentStartDate);
   const endDate = parseISO(currentRevisedEndDate);
@@ -69,13 +69,12 @@ const getWeeklyPlanForLabel = (item, weekStartDay, currentStartDate, currentRevi
 const DailyProjects = () => {
   const { tenderId } = useProject();
   
-  const [currentDate, setCurrentDate] = useState(new Date("2025-12-01")); 
+  const [currentDate, setCurrentDate] = useState(new Date("2025-12-01"));
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [updates, setUpdates] = useState({}); 
   const [revisedDateUpdates, setRevisedDateUpdates] = useState({}); 
   const [startDateUpdates, setStartDateUpdates] = useState({}); 
-  
   const [isEditing, setIsEditing] = useState(false);
 
   const scrollContainerRef = useRef(null);
@@ -119,7 +118,7 @@ const DailyProjects = () => {
   const getStartDate = (item) => startDateUpdates[item.wbs_id] || item.start_date;
 
   const clearValuesInRange = (wbsId, rangeStart, rangeEnd) => {
-    if (rangeStart > rangeEnd) return; 
+    if (rangeStart > rangeEnd) return;
 
     const datesToClear = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
     
@@ -141,20 +140,20 @@ const DailyProjects = () => {
     const currentRevisedEnd = parseISO(getRevisedDate(item));
     const originalEnd = parseISO(item.original_end_date);
 
-    // Normalize for comparisons (Fixes the Start Date time issue)
+    // Normalize for comparisons (Fixes the "18:30 vs 00:00" issue)
     const normClicked = startOfDay(clickedDate);
     const normStart = startOfDay(currentStart);
     const normRevisedEnd = startOfDay(currentRevisedEnd);
     const normOriginalEnd = startOfDay(originalEnd);
 
-    // 1. EXTEND
+    // A. EXTEND End Date
     if (normClicked > normRevisedEnd) {
       setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
       toast.info(`End Date extended to ${format(clickedDate, "dd MMM")}`);
       return;
     }
 
-    // 2. REVERT TO ORIGINAL END
+    // B. REVERT to Original End
     if (normRevisedEnd > normOriginalEnd && isSameDay(normClicked, normOriginalEnd)) {
        if (window.confirm(`Revert Revised Date back to Original End Date (${format(clickedDate, "dd MMM")})?\nThis will clear inputs after this date.`)) {
           clearValuesInRange(item.wbs_id, addDays(normOriginalEnd, 1), normRevisedEnd);
@@ -164,7 +163,7 @@ const DailyProjects = () => {
        return;
     }
 
-    // 3. REDUCE REVISED END
+    // C. REDUCE Revised End
     if (normClicked > normOriginalEnd && normClicked < normRevisedEnd) {
       if (window.confirm(`Reduce Revised End Date to ${format(clickedDate, "dd MMM")}?\nThis will clear inputs after this date.`)) {
         clearValuesInRange(item.wbs_id, addDays(normClicked, 1), normRevisedEnd);
@@ -174,7 +173,7 @@ const DailyProjects = () => {
       return;
     }
 
-    // 4. SHIFT START DATE
+    // D. SHIFT Start Date
     if (normClicked > normStart && normClicked < normOriginalEnd) {
       const diffDays = differenceInCalendarDays(normClicked, normStart);
       if (window.confirm(`Move Start Date to ${format(clickedDate, 'dd MMM')}?\n(This skips ${diffDays} days and will clear their inputs)`)) {
@@ -197,10 +196,14 @@ const DailyProjects = () => {
     }
   };
 
+  // --- 4. Edit Toggle & Save ---
   const handleEditToggle = async () => {
     if (isEditing) {
-        console.log({ daily_updates: updates, revised_end_dates: revisedDateUpdates, new_start_dates: startDateUpdates });
+        // Save Mode: Send updates to backend
         try {
+          console.log("updates", updates);
+          console.log("revisedDateUpdates", revisedDateUpdates);
+          console.log("startDateUpdates", startDateUpdates);
             const res = await axios.put(`${API}/schedule/update-daily-schedule/${tenderId}`, {
                 daily_updates: updates,
                 revised_end_dates: revisedDateUpdates,
@@ -209,6 +212,11 @@ const DailyProjects = () => {
             if (res.data && res.data.status) {
                 toast.success("Schedule Updated Successfully");
                 setIsEditing(false);
+                // Clear local tracking states
+                setUpdates({});
+                setRevisedDateUpdates({});
+                setStartDateUpdates({});
+                // Refresh data
                 fetchWBS(); 
             }
         } catch (err) {
@@ -253,7 +261,11 @@ const DailyProjects = () => {
             <span className="px-4 font-semibold text-sm w-32 text-center text-gray-700 dark:text-gray-200 min-w-[140px]">{format(currentDate, "MMMM yyyy")}</span>
             <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300"><ChevronRight size={18} /></button>
           </div>
-          <button onClick={handleEditToggle} disabled={loading} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 ${isEditing ? "bg-green-600 hover:bg-green-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}>
+          <button 
+            onClick={handleEditToggle} 
+            disabled={loading} 
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 ${isEditing ? "bg-green-600 hover:bg-green-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
+          >
             {loading ? <Loader2 className="animate-spin" size={16} /> : (isEditing ? <Save size={16} /> : <Edit2 size={16} />)} 
             {isEditing ? "Save" : "Edit"}
           </button>
@@ -270,8 +282,12 @@ const DailyProjects = () => {
       </div>
 
       {/* --- Matrix --- */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto relative">
-        {loading && <div className="absolute inset-0 z-50 bg-white/50 dark:bg-layout-dark/50 flex items-center justify-center backdrop-blur-sm"><Loader2 className="animate-spin text-blue-600" size={32} /></div>}
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto relative custom-scrollbar">
+        {loading && (
+          <div className="absolute inset-0 z-50 bg-white/50 dark:bg-layout-dark/50 flex items-center justify-center backdrop-blur-sm">
+            <Loader2 className="animate-spin text-blue-600" size={32} />
+          </div>
+        )}
 
         <table className="border-collapse w-full">
           <thead className="bg-gray-50 dark:bg-gray-800 z-40 sticky top-0">
@@ -294,7 +310,7 @@ const DailyProjects = () => {
           </thead>
 
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {items.map((item) => {
+            {items.map((item,index) => {
               const currentRevisedDate = getRevisedDate(item);
               const currentStartDate = getStartDate(item);
 
@@ -302,8 +318,9 @@ const DailyProjects = () => {
                 <tr key={item.wbs_id} className="group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                   <td className="sticky left-0 z-30 bg-white dark:bg-layout-dark group-hover:bg-gray-50 dark:group-hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-3 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] align-top">
                     <div className="flex flex-col gap-1">
-                      <div className="font-semibold text-sm text-gray-800 dark:text-gray-200 truncate max-w-[280px]" title={item.description}>{item.description}</div>
+                      <div className="font-semibold text-sm text-gray-800 dark:text-gray-200 truncate max-w-[280px]" title={item.description}> {index+1}. {item.description}</div>
                       <div className="flex items-center gap-2 mt-1">
+                        
                         <span className="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-500 px-1.5 py-0.5 rounded">{item.wbs_id}</span>
                         <span className="text-[10px] text-gray-500">Qty: {item.quantity} {item.unit}</span>
                       </div>
@@ -311,7 +328,7 @@ const DailyProjects = () => {
                   </td>
 
                   {daysInMonth.map((day) => {
-                    const dayStr = day.toISOString();
+                    const dayStr = format(day, "yyyy-MM-dd") + "T00:00:00.000Z";
                     const dayParsed = parseISO(dayStr);
                     const parsedStart = parseISO(currentStartDate);
                     const parsedOriginalEnd = parseISO(item.original_end_date);
@@ -322,7 +339,6 @@ const DailyProjects = () => {
                     const normDay = startOfDay(dayParsed);
                     const normStart = startOfDay(parsedStart);
                     const normRevisedEnd = startOfDay(parsedRevisedEnd);
-
                     const isActiveRange = isWithinInterval(normDay, { start: normStart, end: normRevisedEnd });
                     
                     // Keep markers strictly checking the exact date object from previous logic (which used isSameDay correctly)

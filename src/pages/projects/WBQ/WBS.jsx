@@ -25,7 +25,7 @@ const WBS = () => {
     setLoading(true);
     try {
       const res = await axios.get(`${API}/schedule/get-schedule/${tenderId}`)
-      setItems(res.data.data || []);
+      setItems(res.data.data.items || []);
     } catch (err) {
         toast.error("Failed to fetch WBS items");
     } finally {
@@ -48,7 +48,7 @@ const WBS = () => {
         onUpdated={fetchWBS}
         onSuccess={fetchWBS}
         pagination={false}
-        
+
       />
 
     </>
