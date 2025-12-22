@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, subMonths, addMonths, differenceInCalendarDays, addDays, isWithinInterval, max, min, getDate, startOfDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, subMonths, addMonths, differenceInCalendarDays, addDays, isWithinInterval, max, min, getDate, startOfDay, parseISO,isSameDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Save, Calendar as CalendarIcon, Loader2, Edit2, Lock } from "lucide-react";
 import { API } from "../../../../../../constant";
 import axios from "axios";
@@ -9,7 +9,15 @@ import { toast } from "react-toastify";
 // --- STRICT UTC HELPER ---
 const normalizeToUTC = (dateStr) => {
   if (!dateStr) return null;
+  // Ensure we just take the date part YYYY-MM-DD and force T00:00:00.000Z
   return dateStr.substring(0, 10) + "T00:00:00.000Z";
+};
+
+// Helper: Get pure YYYY-MM-DD string from an ISO string or Date object
+const getDateKey = (date) => {
+    if (!date) return null;
+    if (typeof date === 'string') return date.substring(0, 10);
+    return format(date, 'yyyy-MM-dd');
 };
 
 // --- Data Processor ---
@@ -21,11 +29,9 @@ const processData = (items) => {
       ? [...item.daily].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       : [];
 
-    // FIX: Set to null if missing. Do NOT fallback to 'new Date()' to avoid fake markers.
     const originalStart = normalizeToUTC(item.start_date);
     const originalEnd = normalizeToUTC(item.end_date);
     
-    // Revised defaults to Original if missing
     const revisedStart = normalizeToUTC(item.revised_start_date) || originalStart;
     const revisedEnd = normalizeToUTC(item.revised_end_date) || originalEnd;
 
@@ -40,7 +46,7 @@ const processData = (items) => {
   });
 };
 
-// --- Helper: Calculate Single Week Plan Badge ---
+// --- Helper: Weekly Plan ---
 const getWeeklyPlanForLabel = (item, weekStartDay, activeStartStr, activeEndStr, monthStart) => {
   if (!activeStartStr || !activeEndStr) return null;
 
@@ -70,7 +76,12 @@ const getWeeklyPlanForLabel = (item, weekStartDay, activeStartStr, activeEndStr,
   const overlapEnd = min([startOfDay(weekEnd), startOfDay(endDate)]);
 
   if (overlapStart > overlapEnd) return null;
-  if (!isSameDay(weekStartDay, overlapStart)) return null;
+  
+  // Strict String Comparison for 'isSameDay' check to avoid timezone jitter
+  const weekStartStr = format(weekStartDay, 'yyyy-MM-dd');
+  const overlapStartStr = format(overlapStart, 'yyyy-MM-dd');
+
+  if (weekStartStr !== overlapStartStr) return null;
 
   const overlapDays = differenceInCalendarDays(overlapEnd, overlapStart) + 1;
   const plannedQty = (overlapDays * dailyRate).toFixed(1);
@@ -124,6 +135,7 @@ const DailyProjects = () => {
   const handleNextMonth = () => setCurrentDate(prev => startOfMonth(addMonths(prev, 1)));
 
   const handleInputChange = (wbsId, dateStr, value) => {
+    // dateStr here is coming from the column key, which is YYYY-MM-DD + T00...
     setUpdates(prev => ({ ...prev, [`${wbsId}-${dateStr}`]: value }));
   };
 
@@ -136,7 +148,6 @@ const DailyProjects = () => {
     setUpdates(prev => {
       const newUpdates = { ...prev };
       datesToClear.forEach(date => {
-        // Ensure keys being cleared also match the UTC Midnight format
         const key = `${wbsId}-${normalizeToUTC(date.toISOString())}`;
         delete newUpdates[key]; 
       });
@@ -145,15 +156,13 @@ const DailyProjects = () => {
   };
 
   // --- Strict Bounded Logic ---
-// --- Strict Constraints: OS/OE Boundaries & Choice Logic ---
   const handleCellDoubleClick = (item, dateStr) => {
     if (!isEditing) return;
 
-    // 1. Parse Clicked Date
     const clickedDate = parseISO(dateStr);
     const normClicked = startOfDay(clickedDate);
 
-    // 2. Get Current Dates (OS, OE, RS, RE)
+    // Get Dates
     const currentRevisedStartStr = getRevisedStartDate(item);
     const currentRevisedEndStr = getRevisedEndDate(item);
     const originalStartStr = item.original_start_date;
@@ -174,28 +183,20 @@ const DailyProjects = () => {
     const normOriginalStart = originalStartStr ? startOfDay(parseISO(originalStartStr)) : null;
     const normOriginalEnd = originalEndStr ? startOfDay(parseISO(originalEndStr)) : null;
 
-    // =================================================================================
-    // ZONE 1: BLOCKED (Below Original Start)
-    // "not below to 5 like 4,3,2..."
-    // =================================================================================
+    // --- ZONE 1: BLOCKED (Below Original Start) ---
     if (normOriginalStart && normClicked < normOriginalStart) {
         toast.warn(`Revised Start cannot be before Original Start (${format(normOriginalStart, 'dd MMM')})`);
         return;
     }
 
-    // =================================================================================
-    // ZONE 2: END DATE LOGIC (Above Original End)
-    // "on double click above OE... revise end date"
-    // "can be 14, 15... but not below OE"
-    // =================================================================================
+    // --- ZONE 2: END DATE LOGIC (Above Original End) ---
     if (normOriginalEnd && normClicked > normOriginalEnd) {
-        // We are strictly modifying RE here.
         if (normClicked > normRevisedEnd) {
-            // Extending
+            // Extend
             setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
             toast.info(`Revised End extended to ${format(clickedDate, "dd MMM")}`);
         } else {
-            // Reducing (but still > OE)
+            // Reduce
             if (window.confirm(`Reduce Revised End Date to ${format(clickedDate, "dd MMM")}?`)) {
                 clearValuesInRange(item.wbs_id, addDays(normClicked, 1), normRevisedEnd);
                 setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
@@ -205,16 +206,8 @@ const DailyProjects = () => {
         return;
     }
 
-    // =================================================================================
-    // ZONE 3: EXACTLY ON ORIGINAL END (Ambiguous Zone)
-    // "on double click on Original end date OE: ask want to revise start or end"
-    // =================================================================================
+    // --- ZONE 3: EXACTLY ON ORIGINAL END ---
     if (normOriginalEnd && isSameDay(normClicked, normOriginalEnd)) {
-        // Create a custom choice flow using confirm (Binary choice)
-        // OK = Revise Start | Cancel = Revise End
-        
-        // Note: JS confirm is limited. Ideally use a custom modal. 
-        // Here we frame the question to work with OK/Cancel.
         const choice = window.confirm(
             `You clicked the Original End Date (${format(clickedDate, 'dd MMM')}).\n\n` +
             `Click OK to set REVISED START (Delay start to this date).\n` +
@@ -222,14 +215,10 @@ const DailyProjects = () => {
         );
 
         if (choice) {
-            // --- OPTION A: REVISE START (Delay RS to OE) ---
             const diffDays = differenceInCalendarDays(normClicked, normRevisedStart);
-            
-            // 1. Move Start
             clearValuesInRange(item.wbs_id, normRevisedStart, addDays(normClicked, -1));
             setStartDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
 
-            // 2. Ask to Extend RE
             if(window.confirm(`Start delayed by ${diffDays} days.\n\nExtend Revised End by ${diffDays} days?`)) {
                 const newEnd = addDays(normRevisedEnd, diffDays);
                 const newEndStr = format(newEnd, "yyyy-MM-dd") + "T00:00:00.000Z";
@@ -239,8 +228,6 @@ const DailyProjects = () => {
                 toast.success(`Start delayed to OE`);
             }
         } else {
-            // --- OPTION B: REVISE END (Reset RE to OE) ---
-            // If current RE is > OE, we are reducing it back to OE
             if (normRevisedEnd > normClicked) {
                 clearValuesInRange(item.wbs_id, addDays(normClicked, 1), normRevisedEnd);
             }
@@ -250,16 +237,10 @@ const DailyProjects = () => {
         return;
     }
 
-    // =================================================================================
-    // ZONE 4: START DATE LOGIC (Between OS and OE)
-    // "RS can be from 7... to 13... not above 13"
-    // =================================================================================
+    // --- ZONE 4: START DATE LOGIC (Between OS and OE) ---
     if (normOriginalStart && normOriginalEnd && normClicked >= normOriginalStart && normClicked < normOriginalEnd) {
         
-        // This is strictly RS modification.
-        
-        // Case A: Backward Shift (Early)
-        // "if RS is backward one day just update RS"
+        // Case A: Backward Shift
         if (normClicked < normRevisedStart) {
             if (window.confirm(`Move Revised Start earlier to ${format(clickedDate, 'dd MMM')}?`)) {
                 setStartDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
@@ -268,18 +249,13 @@ const DailyProjects = () => {
             return;
         }
 
-        // Case B: Forward Shift (Delay)
-        // "if RS delayed one day ask want to extend RE"
+        // Case B: Forward Shift
         if (normClicked > normRevisedStart) {
             const diffDays = differenceInCalendarDays(normClicked, normRevisedStart);
-            
             if (window.confirm(`Delay Revised Start by ${diffDays} days to ${format(clickedDate, 'dd MMM')}?`)) {
-                
-                // 1. Update RS
                 clearValuesInRange(item.wbs_id, normRevisedStart, addDays(normClicked, -1));
                 setStartDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
 
-                // 2. Ask Update RE
                 if(window.confirm(`Add these ${diffDays} days to the Revised End Date?`)) {
                     const newEnd = addDays(normRevisedEnd, diffDays);
                     const newEndStr = format(newEnd, "yyyy-MM-dd") + "T00:00:00.000Z";
@@ -297,6 +273,9 @@ const DailyProjects = () => {
   const handleEditToggle = async () => {
     if (isEditing) {
         try {
+          console.log("updates",updates);
+          console.log("revisedDateUpdates",revisedDateUpdates);
+          console.log("startDateUpdates",startDateUpdates);
             const res = await axios.put(`${API}/schedule/update-daily-schedule/${tenderId}`, {
                 daily_updates: updates,
                 revised_end_dates: revisedDateUpdates,
@@ -420,17 +399,23 @@ const DailyProjects = () => {
                   </td>
 
                   {daysInMonth.map((day) => {
-                    // FORCE UTC MIDNIGHT KEY GENERATION
-                    const dayStr = normalizeToUTC(day.toISOString()); 
+                    // FORCE UTC MIDNIGHT KEY GENERATION FOR RENDER
+                    // NOTE: format(day) uses Local timezone. To match "YYYY-MM-DDT00:00:00.000Z", we ensure the string matches the UTC Key.
+                    const dayStr = format(day, "yyyy-MM-dd") + "T00:00:00.000Z";
+                    
+                    // --- STRING COMPARISON FOR MARKERS (Timezone Safe) ---
+                    // We extract YYYY-MM-DD from the item's stored UTC strings
+                    const dayKey = dayStr.substring(0, 10);
+                    const revStartKey = getDateKey(currentRevisedStart);
+                    const revEndKey = getDateKey(currentRevisedEnd);
+                    const origStartKey = getDateKey(constantOriginalStart);
+                    const origEndKey = getDateKey(constantOriginalEnd);
+
+                    // --- PARSING FOR RANGE/EDIT LOGIC (Using Libraries for Math) ---
                     const dayParsed = parseISO(dayStr);
                     const normDay = startOfDay(dayParsed);
-
-                    // --- PARSING WITH NULL SAFETY ---
                     const parsedRevStart = currentRevisedStart ? parseISO(currentRevisedStart) : null;
                     const parsedRevEnd = currentRevisedEnd ? parseISO(currentRevisedEnd) : null;
-                    const parsedOrigStart = constantOriginalStart ? parseISO(constantOriginalStart) : null;
-                    const parsedOrigEnd = constantOriginalEnd ? parseISO(constantOriginalEnd) : null;
-
                     const normRevStart = parsedRevStart ? startOfDay(parsedRevStart) : null;
                     const normRevEnd = parsedRevEnd ? startOfDay(parsedRevEnd) : null;
 
@@ -439,11 +424,11 @@ const DailyProjects = () => {
                         ? isWithinInterval(normDay, { start: normRevStart, end: normRevEnd }) 
                         : false;
                     
-                    // 2. Marker Checks
-                    const isRevStart = parsedRevStart ? isSameDay(parsedRevStart, dayParsed) : false;
-                    const isOrigStart = parsedOrigStart ? isSameDay(parsedOrigStart, dayParsed) : false;
-                    const isOrigEnd = parsedOrigEnd ? isSameDay(parsedOrigEnd, dayParsed) : false;
-                    const isRevEnd = parsedRevEnd ? isSameDay(parsedRevEnd, dayParsed) : false;
+                    // 2. Marker Checks (Strict String Equality)
+                    const isRevStart = revStartKey === dayKey;
+                    const isOrigStart = origStartKey === dayKey;
+                    const isOrigEnd = origEndKey === dayKey;
+                    const isRevEnd = revEndKey === dayKey;
                     
                     const isCombinedEnd = isOrigEnd && isRevEnd;
                     const isCombinedStart = isOrigStart && isRevStart;
