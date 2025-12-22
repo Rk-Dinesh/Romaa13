@@ -40,6 +40,8 @@ const WBS = () => {
   return (
     <>
       <Table
+        title="Work Breakdown Structure"
+        subtitle={`Tender ID: ${tenderId}`}
         endpoint={items}
         columns={customerColumns}
         loading={loading}

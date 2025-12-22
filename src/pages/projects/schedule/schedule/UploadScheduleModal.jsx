@@ -68,9 +68,9 @@ const UploadScheduleModal = ({ onClose, onSuccess }) => {
         safeDescription,
         item.unit,
         item.quantity,
-        formatDate(item.start_date),       // Pre-fill if exists, else empty
-        formatDate(item.end_date),         // Pre-fill if exists, else empty
-        formatDate(item.revised_end_date), // Pre-fill if exists, else empty
+        formatDate(item.start_date),       
+        formatDate(item.end_date),         
+        formatDate(item.revised_end_date), 
       ].join(",");
     });
 
