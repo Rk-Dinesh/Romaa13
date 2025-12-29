@@ -1,115 +1,104 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, subMonths, addMonths, differenceInCalendarDays, addDays, isWithinInterval, max, min, getDate, startOfDay, parseISO,isSameDay } from "date-fns";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  subMonths,
+  addMonths,
+  isWithinInterval,
+  startOfDay,
+  parseISO,
+  isSameDay,
+  differenceInCalendarDays,
+  getDate,
+  max,
+  min
+} from "date-fns";
 import { ChevronLeft, ChevronRight, Save, Calendar as CalendarIcon, Loader2, Edit2, Lock } from "lucide-react";
 import { API } from "../../../../../../constant";
 import axios from "axios";
 import { useProject } from "../../../../ProjectContext";
 import { toast } from "react-toastify";
 
-// --- STRICT UTC HELPER ---
-const normalizeToUTC = (dateStr) => {
-  if (!dateStr) return null;
-  // Ensure we just take the date part YYYY-MM-DD and force T00:00:00.000Z
-  return dateStr.substring(0, 10) + "T00:00:00.000Z";
+// --- HELPERS ---
+
+const flattenStructure = (nodes) => {
+  let flatList = [];
+  const traverse = (node, level) => {
+    if (node.row_index !== undefined) flatList.push({ ...node, level });
+    if (node.items) node.items.forEach(child => traverse(child, level + 1));
+    if (node.tasks) node.tasks.forEach(child => traverse(child, level + 1));
+    if (node.task_wbs_ids) node.task_wbs_ids.forEach(child => traverse(child, level + 1));
+  };
+  if (Array.isArray(nodes)) nodes.forEach(node => traverse(node, 0));
+  return flatList.sort((a, b) => a.row_index - b.row_index);
 };
 
-// Helper: Get pure YYYY-MM-DD string from an ISO string or Date object
-const getDateKey = (date) => {
-    if (!date) return null;
-    if (typeof date === 'string') return date.substring(0, 10);
-    return format(date, 'yyyy-MM-dd');
+const getLevelStyle = (level) => {
+  switch (level) {
+    case 0: return "font-extrabold text-blue-900 dark:text-white uppercase tracking-wide";
+    case 1: return "font-bold text-red-700 dark:text-blue-400";
+    case 2: return "font-medium text-slate-900 dark:text-gray-300 text-sm";
+    case 3: return "font-normal text-blue-400 dark:text-gray-400 italic text-xs text-semibold";
+    default: return "text-gray-800";
+  }
 };
 
-// --- Data Processor ---
-const processData = (items) => {
-  if (!Array.isArray(items)) return [];
-
-  return items.map(item => {
-    const sortedDaily = Array.isArray(item.daily) 
-      ? [...item.daily].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      : [];
-
-    const originalStart = normalizeToUTC(item.start_date);
-    const originalEnd = normalizeToUTC(item.end_date);
-    
-    const revisedStart = normalizeToUTC(item.revised_start_date) || originalStart;
-    const revisedEnd = normalizeToUTC(item.revised_end_date) || originalEnd;
-
-    return {
-      ...item,
-      original_start_date: originalStart, 
-      original_end_date: originalEnd,     
-      revised_start_date: revisedStart,   
-      revised_end_date: revisedEnd,       
-      daily: sortedDaily
-    };
-  });
+const getUTCDateStr = (dateInput) => {
+  if (!dateInput) return null;
+  if (typeof dateInput === 'string') return dateInput.substring(0, 10);
+  return format(dateInput, "yyyy-MM-dd");
 };
 
-// --- Helper: Weekly Plan ---
-const getWeeklyPlanForLabel = (item, weekStartDay, activeStartStr, activeEndStr, monthStart) => {
+const getWeeklyPlanForLabel = (item, dayObj, activeStartStr, activeEndStr) => {
   if (!activeStartStr || !activeEndStr) return null;
-
   const startDate = parseISO(activeStartStr);
   const endDate = parseISO(activeEndStr);
   const totalDuration = differenceInCalendarDays(endDate, startDate) + 1;
   if (totalDuration <= 0) return null;
 
-  const dailyRate = item.quantity / totalDuration;
+  const dailyRate = (item.quantity || 0) / totalDuration;
+  const dayNum = getDate(dayObj);
+  let weekIndex = dayNum <= 7 ? 1 : dayNum <= 14 ? 2 : dayNum <= 21 ? 3 : 4;
 
-  const dayNum = getDate(weekStartDay);
-  let weekEndDayNum;
-  let weekIndex;
+  const logicalWeekStartDay = (weekIndex - 1) * 7 + 1;
+  if (getDate(dayObj) !== logicalWeekStartDay) return null;
 
-  if (dayNum <= 7) { weekEndDayNum = 7; weekIndex = 1; }
-  else if (dayNum <= 14) { weekEndDayNum = 14; weekIndex = 2; }
-  else if (dayNum <= 21) { weekEndDayNum = 21; weekIndex = 3; }
-  else { weekEndDayNum = 31; weekIndex = 4; }
+  const currentMonthYear = startOfMonth(dayObj);
+  const logicalWeekStartDate = new Date(Date.UTC(currentMonthYear.getFullYear(), currentMonthYear.getMonth(), logicalWeekStartDay));
+  const weekEndDay = weekIndex === 4 ? endOfMonth(dayObj).getDate() : weekIndex * 7;
+  const logicalWeekEndDate = new Date(Date.UTC(currentMonthYear.getFullYear(), currentMonthYear.getMonth(), weekEndDay));
 
-  const mEnd = endOfMonth(monthStart);
-  let weekEnd = new Date(monthStart.getFullYear(), monthStart.getMonth(), weekEndDayNum);
-  if (weekEnd > mEnd) weekEnd = mEnd;
-  
-  let logicalWeekStart = new Date(monthStart.getFullYear(), monthStart.getMonth(), (weekIndex - 1) * 7 + 1);
-  
-  const overlapStart = max([startOfDay(logicalWeekStart), startOfDay(startDate)]);
-  const overlapEnd = min([startOfDay(weekEnd), startOfDay(endDate)]);
+  const overlapStart = max([startOfDay(logicalWeekStartDate), startOfDay(startDate)]);
+  const overlapEnd = min([startOfDay(logicalWeekEndDate), startOfDay(endDate)]);
 
   if (overlapStart > overlapEnd) return null;
-  
-  // Strict String Comparison for 'isSameDay' check to avoid timezone jitter
-  const weekStartStr = format(weekStartDay, 'yyyy-MM-dd');
-  const overlapStartStr = format(overlapStart, 'yyyy-MM-dd');
-
-  if (weekStartStr !== overlapStartStr) return null;
 
   const overlapDays = differenceInCalendarDays(overlapEnd, overlapStart) + 1;
   const plannedQty = (overlapDays * dailyRate).toFixed(1);
 
+  if (parseFloat(plannedQty) <= 0) return null;
   return { label: `W${weekIndex}: ${plannedQty}`, weekIndex };
 };
 
 
 const DailyProjects = () => {
   const { tenderId } = useProject();
-  
-  const [currentDate, setCurrentDate] = useState(new Date("2025-12-01")); 
-  const [items, setItems] = useState([]);
+  const [currentDate, setCurrentDate] = useState(new Date("2026-01-01"));
+  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [updates, setUpdates] = useState({}); 
-  const [revisedDateUpdates, setRevisedDateUpdates] = useState({}); 
-  const [startDateUpdates, setStartDateUpdates] = useState({}); 
+  const [updates, setUpdates] = useState({});
   const [isEditing, setIsEditing] = useState(false);
-
   const scrollContainerRef = useRef(null);
 
-  const fetchWBS = async () => {
+  const fetchSchedule = async () => {
     if (!tenderId) return;
     setLoading(true);
     try {
-      const res = await axios.get(`${API}/schedule/get-daily-schedule/${tenderId}`);
-      if (res.data && res.data.data) {
-        setItems(processData(res.data.data));
+      const res = await axios.get(`${API}/schedulelite/get-daily-schedule/${tenderId}`);
+      if (res.data?.data?.structure) {
+        setRows(flattenStructure(res.data.data.structure));
       }
     } catch (err) {
       console.error(err);
@@ -119,377 +108,182 @@ const DailyProjects = () => {
     }
   };
 
-  useEffect(() => {
-    fetchWBS();
-  }, [tenderId]);
+  useEffect(() => { fetchSchedule(); }, [tenderId]);
+  useEffect(() => { if (scrollContainerRef.current) scrollContainerRef.current.scrollLeft = 0; }, [currentDate]);
 
-  useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollLeft = 0;
-    }
-  }, [currentDate]);
-
-  const daysInMonth = useMemo(() => eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(currentDate) }), [currentDate]);
+  const daysInMonth = useMemo(() => eachDayOfInterval({
+    start: startOfMonth(currentDate), end: endOfMonth(currentDate)
+  }), [currentDate]);
 
   const handlePrevMonth = () => setCurrentDate(prev => startOfMonth(subMonths(prev, 1)));
   const handleNextMonth = () => setCurrentDate(prev => startOfMonth(addMonths(prev, 1)));
 
-  const handleInputChange = (wbsId, dateStr, value) => {
-    // dateStr here is coming from the column key, which is YYYY-MM-DD + T00...
-    setUpdates(prev => ({ ...prev, [`${wbsId}-${dateStr}`]: value }));
+  const handleInputChange = (rowIndex, dateStr, value) => {
+    const key = `${rowIndex}_${dateStr}`;
+    setUpdates(prev => ({ ...prev, [key]: value }));
   };
 
-  const getRevisedEndDate = (item) => revisedDateUpdates[item.wbs_id] || item.revised_end_date;
-  const getRevisedStartDate = (item) => startDateUpdates[item.wbs_id] || item.revised_start_date;
-
-  const clearValuesInRange = (wbsId, rangeStart, rangeEnd) => {
-    if (rangeStart > rangeEnd) return; 
-    const datesToClear = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
-    setUpdates(prev => {
-      const newUpdates = { ...prev };
-      datesToClear.forEach(date => {
-        const key = `${wbsId}-${normalizeToUTC(date.toISOString())}`;
-        delete newUpdates[key]; 
-      });
-      return newUpdates;
+const handleSave = async () => {
+    const payloadArray = Object.entries(updates).map(([key, value]) => {
+      const [rowIndexStr, dateStr] = key.split('_');
+      return { row_index: Number(rowIndexStr), date: `${dateStr}T00:00:00.000Z`, quantity: Number(value) };
     });
-  };
+    const validUpdates = payloadArray.filter(u => !isNaN(u.quantity) && u.quantity !== "");
 
-  // --- Strict Bounded Logic ---
-  const handleCellDoubleClick = (item, dateStr) => {
-    if (!isEditing) return;
-
-    const clickedDate = parseISO(dateStr);
-    const normClicked = startOfDay(clickedDate);
-
-    // Get Dates
-    const currentRevisedStartStr = getRevisedStartDate(item);
-    const currentRevisedEndStr = getRevisedEndDate(item);
-    const originalStartStr = item.original_start_date;
-    const originalEndStr = item.original_end_date;
-
-    // Initialize (if empty)
-    if (!currentRevisedStartStr) {
-        if(window.confirm(`Set Project Start to ${format(clickedDate, 'dd MMM')}?`)) {
-             setStartDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
-             setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
-             toast.success("Project Started");
-        }
-        return;
+    if (validUpdates.length === 0) {
+      setIsEditing(false);
+      return;
     }
 
-    const normRevisedStart = startOfDay(parseISO(currentRevisedStartStr));
-    const normRevisedEnd = startOfDay(parseISO(currentRevisedEndStr));
-    const normOriginalStart = originalStartStr ? startOfDay(parseISO(originalStartStr)) : null;
-    const normOriginalEnd = originalEndStr ? startOfDay(parseISO(originalEndStr)) : null;
+    try {
+      setLoading(true);
+      const res = await axios.post(`${API}/schedulelite/update-daily-quantity-bulk/${tenderId}`, { updates: validUpdates });
+      console.log(res.data);
 
-    // --- ZONE 1: BLOCKED (Below Original Start) ---
-    if (normOriginalStart && normClicked < normOriginalStart) {
-        toast.warn(`Revised Start cannot be before Original Start (${format(normOriginalStart, 'dd MMM')})`);
-        return;
-    }
-
-    // --- ZONE 2: END DATE LOGIC (Above Original End) ---
-    if (normOriginalEnd && normClicked > normOriginalEnd) {
-        if (normClicked > normRevisedEnd) {
-            // Extend
-            setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
-            toast.info(`Revised End extended to ${format(clickedDate, "dd MMM")}`);
-        } else {
-            // Reduce
-            if (window.confirm(`Reduce Revised End Date to ${format(clickedDate, "dd MMM")}?`)) {
-                clearValuesInRange(item.wbs_id, addDays(normClicked, 1), normRevisedEnd);
-                setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
-                toast.info(`End Date reduced`);
-            }
-        }
-        return;
-    }
-
-    // --- ZONE 3: EXACTLY ON ORIGINAL END ---
-    if (normOriginalEnd && isSameDay(normClicked, normOriginalEnd)) {
-        const choice = window.confirm(
-            `You clicked the Original End Date (${format(clickedDate, 'dd MMM')}).\n\n` +
-            `Click OK to set REVISED START (Delay start to this date).\n` +
-            `Click CANCEL to set REVISED END (Reset end to this date).`
-        );
-
-        if (choice) {
-            const diffDays = differenceInCalendarDays(normClicked, normRevisedStart);
-            clearValuesInRange(item.wbs_id, normRevisedStart, addDays(normClicked, -1));
-            setStartDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
-
-            if(window.confirm(`Start delayed by ${diffDays} days.\n\nExtend Revised End by ${diffDays} days?`)) {
-                const newEnd = addDays(normRevisedEnd, diffDays);
-                const newEndStr = format(newEnd, "yyyy-MM-dd") + "T00:00:00.000Z";
-                setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: newEndStr }));
-                toast.success(`Start delayed to OE & End extended`);
-            } else {
-                toast.success(`Start delayed to OE`);
-            }
-        } else {
-            if (normRevisedEnd > normClicked) {
-                clearValuesInRange(item.wbs_id, addDays(normClicked, 1), normRevisedEnd);
-            }
-            setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
-            toast.info(`Revised End reset to Original End`);
-        }
-        return;
-    }
-
-    // --- ZONE 4: START DATE LOGIC (Between OS and OE) ---
-    if (normOriginalStart && normOriginalEnd && normClicked >= normOriginalStart && normClicked < normOriginalEnd) {
-        
-        // Case A: Backward Shift
-        if (normClicked < normRevisedStart) {
-            if (window.confirm(`Move Revised Start earlier to ${format(clickedDate, 'dd MMM')}?`)) {
-                setStartDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
-                toast.success(`Start Date moved earlier`);
-            }
-            return;
-        }
-
-        // Case B: Forward Shift
-        if (normClicked > normRevisedStart) {
-            const diffDays = differenceInCalendarDays(normClicked, normRevisedStart);
-            if (window.confirm(`Delay Revised Start by ${diffDays} days to ${format(clickedDate, 'dd MMM')}?`)) {
-                clearValuesInRange(item.wbs_id, normRevisedStart, addDays(normClicked, -1));
-                setStartDateUpdates(prev => ({ ...prev, [item.wbs_id]: dateStr }));
-
-                if(window.confirm(`Add these ${diffDays} days to the Revised End Date?`)) {
-                    const newEnd = addDays(normRevisedEnd, diffDays);
-                    const newEndStr = format(newEnd, "yyyy-MM-dd") + "T00:00:00.000Z";
-                    setRevisedDateUpdates(prev => ({ ...prev, [item.wbs_id]: newEndStr }));
-                    toast.success(`Start delayed & End extended`);
-                } else {
-                    toast.success(`Start delayed`);
-                }
-            }
-            return;
-        }
+      // Check res.data.status OR res.data.data.success based on your structure
+      if (res.data.status === true || (res.data.data && res.data.data.success === true)) { 
+        toast.success(`Updated ${validUpdates.length} entries`);
+        setUpdates({});
+        setIsEditing(false);
+        fetchSchedule();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save updates");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleEditToggle = async () => {
-    if (isEditing) {
-        try {
-          console.log("updates",updates);
-          console.log("revisedDateUpdates",revisedDateUpdates);
-          console.log("startDateUpdates",startDateUpdates);
-            const res = await axios.put(`${API}/schedule/update-daily-schedule/${tenderId}`, {
-                daily_updates: updates,
-                revised_end_dates: revisedDateUpdates,
-                new_start_dates: startDateUpdates
-            });
-            if (res.data && res.data.status) {
-                toast.success("Schedule Updated Successfully");
-                setIsEditing(false);
-                setUpdates({});
-                setRevisedDateUpdates({});
-                setStartDateUpdates({});
-                fetchWBS(); 
-            }
-        } catch (err) {
-            console.error(err);
-            toast.error("Failed to Update Schedule");
-        }
-    } else {
-        setIsEditing(true);
-        toast.info("Edit Mode Enabled");
-    }
-  };
-
-  const getInputValue = (item, dayStr) => {
-    const key = `${item.wbs_id}-${dayStr}`;
+  // --- FIXED VALUE RESOLVER ---
+  const getCellValue = (row, dayStr) => {
+    const key = `${row.row_index}_${dayStr}`;
     if (updates.hasOwnProperty(key)) return updates[key];
-    const dayRecord = item.daily.find(d => isSameDay(parseISO(d.date), parseISO(dayStr)));
-    return dayRecord ? dayRecord.quantity : "";
+
+    if (row.daily && Array.isArray(row.daily)) {
+      // Robust string comparison
+      const found = row.daily.find(d => d.date && d.date.substring(0, 10) === dayStr);
+      return found ? found.quantity : "";
+    }
+    return "";
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-layout-dark rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-
-      {/* --- Header --- */}
+    <div className="flex flex-col h-full bg-white dark:bg-layout-dark rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden font-roboto-flex text-sm">
       <div className="flex flex-col md:flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-        <div className="flex items-center gap-4 mb-4 md:mb-0">
-          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
-            <CalendarIcon size={20} />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                Daily Progress {!isEditing && <Lock size={14} className="text-gray-400" />}
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-                {isEditing ? "Double-click cells to adjust active timeline" : "Click 'Edit' to make changes"}
-            </p>
-          </div>
+        <div className="flex items-center gap-4">
+          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400"><CalendarIcon size={20} /></div>
+          <div><h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">Daily Progress {!isEditing && <Lock size={14} className="text-gray-400" />}</h2></div>
         </div>
-
         <div className="flex items-center gap-4">
           <div className="flex items-center bg-white dark:bg-gray-700 rounded-md shadow-sm border border-gray-200 dark:border-gray-600">
-            <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300"><ChevronLeft size={18} /></button>
-            <span className="px-4 font-semibold text-sm w-32 text-center text-gray-700 dark:text-gray-200 min-w-[140px]">{format(currentDate, "MMMM yyyy")}</span>
-            <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300"><ChevronRight size={18} /></button>
+            <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600"><ChevronLeft size={18} /></button>
+            <span className="px-4 font-semibold text-sm w-32 text-center min-w-[140px]">{format(currentDate, "MMMM yyyy")}</span>
+            <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600"><ChevronRight size={18} /></button>
           </div>
-          <button 
-            onClick={handleEditToggle} 
-            disabled={loading} 
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 ${isEditing ? "bg-green-600 hover:bg-green-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
-          >
-            {loading ? <Loader2 className="animate-spin" size={16} /> : (isEditing ? <Save size={16} /> : <Edit2 size={16} />)} 
-            {isEditing ? "Save" : "Edit"}
-          </button>
+          {isEditing ? (
+            <button onClick={handleSave} disabled={loading} className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-green-600 hover:bg-green-700 text-white transition-colors">
+              {loading ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Save Updates
+            </button>
+          ) : (
+            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+              <Edit2 size={16} /> Edit Quantities
+            </button>
+          )}
         </div>
       </div>
 
-      {/* --- Legend --- */}
       <div className="flex gap-6 px-4 py-2 text-xs text-gray-500 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-layout-dark overflow-x-auto">
-        <div className="flex items-center gap-2 whitespace-nowrap"><span className="w-3 h-3 rounded-full bg-cyan-500"></span> Orig. Start (OS)</div>
-        <div className="flex items-center gap-2 whitespace-nowrap"><span className="w-3 h-3 rounded-full bg-green-500"></span> Rev. Start (S)</div>
-        <div className="flex items-center gap-2 whitespace-nowrap"><span className="w-3 h-3 rounded-full bg-red-500"></span> Orig. End (E)</div>
-        <div className="flex items-center gap-2 whitespace-nowrap"><span className="w-3 h-3 rounded-full bg-purple-500"></span> Rev. End (R)</div>
-        <div className="flex items-center gap-2 whitespace-nowrap"><span className="w-12 h-3 rounded bg-blue-100 border border-blue-200 text-[9px] flex items-center justify-center text-blue-600 font-bold">W1: 15</span> Plan</div>
+        <div className="flex items-center gap-2"><span className="w-4 h-3 rounded-full bg-cyan-500 text-[8px] text-white flex items-center justify-center font-bold">OS</span> Orig. Start</div>
+        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-green-500 text-[8px] text-white flex items-center justify-center font-bold">S</span> Rev. Start</div>
+        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-500 text-[8px] text-white flex items-center justify-center font-bold">E</span> Orig. End</div>
+        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-purple-500 text-[8px] text-white flex items-center justify-center font-bold">R</span> Rev. End</div>
+        <div className="flex items-center gap-2"><span className="bg-blue-100 border border-blue-200 text-blue-700 px-1 rounded text-[9px] font-bold">W1: 15.2</span> Weekly Plan</div>
       </div>
 
-      {/* --- Matrix --- */}
       <div ref={scrollContainerRef} className="flex-1 overflow-auto relative custom-scrollbar">
-        {loading && (
-          <div className="absolute inset-0 z-50 bg-white/50 dark:bg-layout-dark/50 flex items-center justify-center backdrop-blur-sm">
-            <Loader2 className="animate-spin text-blue-600" size={32} />
-          </div>
-        )}
-
         <table className="border-collapse w-full">
           <thead className="bg-gray-50 dark:bg-gray-800 z-40 sticky top-0">
             <tr>
-              <th className="sticky left-0 z-50 bg-gray-50 dark:bg-gray-800 border-r border-b border-gray-200 dark:border-gray-700 p-3 text-left min-w-[280px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"><span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Item Details</span></th>
-              {daysInMonth.map((day) => {
-                 const dayNum = getDate(day);
-                 const isEvenWeek = (dayNum > 7 && dayNum <= 14) || (dayNum > 21 && dayNum <= 28);
-                 const headerBg = isEvenWeek ? "bg-gray-100/50 dark:bg-gray-700/30" : "";
-                 return (
-                  <th key={day.toString()} className={`border-b border-r border-gray-200 dark:border-gray-700 min-w-[60px] p-2 text-center ${headerBg}`}>
-                    <div className="flex flex-col items-center">
-                      <span className="text-[10px] uppercase text-gray-400 font-medium">{format(day, "EEE")}</span>
-                      <span className={`text-sm font-bold ${isSameDay(day, new Date()) ? "text-blue-600 bg-blue-50 rounded-full w-6 h-6 flex items-center justify-center" : "text-gray-700 dark:text-gray-300"}`}>{format(day, "d")}</span>
-                    </div>
-                  </th>
-                );
-              })}
+              <th className="sticky left-0 z-50 bg-gray-50 dark:bg-gray-800 border-r border-b border-gray-200 dark:border-gray-700 p-3 text-left min-w-[10px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">#</th>
+              <th className="sticky left-0 z-50 bg-gray-50 dark:bg-gray-800 border-r border-b border-gray-200 dark:border-gray-700 p-3 text-left min-w-[320px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Item Details</th>
+              {daysInMonth.map((day) => (
+                <th key={day.toString()} className="border-b border-r border-gray-200 dark:border-gray-700 min-w-[60px] p-2 text-center bg-gray-50 dark:bg-gray-800">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] uppercase text-gray-400 font-medium">{format(day, "EEE")}</span>
+                    <span className={`text-sm font-bold ${isSameDay(day, new Date()) ? "text-blue-600" : "text-gray-700 dark:text-gray-300"}`}>{format(day, "d")}</span>
+                  </div>
+                </th>
+              ))}
             </tr>
           </thead>
-
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {items.map((item, index) => {
-              const currentRevisedStart = getRevisedStartDate(item);
-              const currentRevisedEnd = getRevisedEndDate(item);
-              const constantOriginalStart = item.original_start_date;
-              const constantOriginalEnd = item.original_end_date;
+            {rows.map((row) => {
+              const safeRevStart = row.revised_start_date || row.start_date;
+              const safeRevEnd = row.revised_end_date || row.end_date;
+              const revStartStr = getUTCDateStr(safeRevStart);
+              const revEndStr = getUTCDateStr(safeRevEnd);
+              const origStartStr = getUTCDateStr(row.start_date);
+              const origEndStr = getUTCDateStr(row.end_date);
+              const validRange = revStartStr && revEndStr;
+              const rangeStart = validRange ? parseISO(revStartStr) : null;
+              const rangeEnd = validRange ? parseISO(revEndStr) : null;
+              const canEditRow = validRange;
+              const name = row.description || row.task_name || row.item_name || row.group_name || "Unknown";
+              const indentPx = 10 + (row.level || 0) * 20;
+              const textStyle = getLevelStyle(row.level || 0);
+              const rowBgClass = row.level === 0 ? "bg-gray-50/50 dark:bg-gray-800/30" : "hover:bg-gray-50 dark:hover:bg-gray-800/50";
 
               return (
-                <tr key={item.wbs_id} className="group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                  <td className="sticky left-0 z-30 bg-white dark:bg-layout-dark group-hover:bg-gray-50 dark:group-hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-3 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] align-top">
-                    <div className="flex flex-col gap-1">
-                      <div className="font-semibold text-sm text-gray-800 dark:text-gray-200 truncate max-w-[280px]" title={item.description}>{index+1}. {item.description}</div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-500 px-1.5 py-0.5 rounded">{item.wbs_id}</span>
-                        <span className="text-[10px] text-gray-500">Qty: {item.quantity} {item.unit} dt: {item.revised_duration} = {(item.quantity / item.revised_duration).toFixed(4)}</span>
-                      </div>
+                <tr key={row._id || `${row.row_index}`} className={`group ${rowBgClass}`}>
+                  <td className="sticky text-center text-xs text-slate-400 left-0 z-30 bg-white dark:bg-layout-dark border-r border-gray-200 dark:border-gray-700 p-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{row.row_index}</td>
+                  <td className="sticky left-0 z-20 bg-white dark:bg-layout-dark border-r border-gray-200 dark:border-gray-700 p-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                    <div className="flex flex-col" style={{ paddingLeft: `${indentPx}px` }}>
+                      <span className={`${textStyle} truncate max-w-[280px] text-xs`} title={name}>{name}</span>
+                      {row.unit && <span className="text-[10px] text-gray-400 mt-1">Qty: {row.quantity} {row.unit} | Dur: {row.revised_duration || row.duration}d</span>}
                     </div>
                   </td>
-
                   {daysInMonth.map((day) => {
-                    // FORCE UTC MIDNIGHT KEY GENERATION FOR RENDER
-                    // NOTE: format(day) uses Local timezone. To match "YYYY-MM-DDT00:00:00.000Z", we ensure the string matches the UTC Key.
-                    const dayStr = format(day, "yyyy-MM-dd") + "T00:00:00.000Z";
-                    
-                    // --- STRING COMPARISON FOR MARKERS (Timezone Safe) ---
-                    // We extract YYYY-MM-DD from the item's stored UTC strings
-                    const dayKey = dayStr.substring(0, 10);
-                    const revStartKey = getDateKey(currentRevisedStart);
-                    const revEndKey = getDateKey(currentRevisedEnd);
-                    const origStartKey = getDateKey(constantOriginalStart);
-                    const origEndKey = getDateKey(constantOriginalEnd);
+                    const dayStr = format(day, "yyyy-MM-dd");
+                    const dayObj = startOfDay(day);
+                    let isActiveDay = false;
+                    if (canEditRow && rangeStart && rangeEnd) isActiveDay = isWithinInterval(dayObj, { start: rangeStart, end: rangeEnd });
 
-                    // --- PARSING FOR RANGE/EDIT LOGIC (Using Libraries for Math) ---
-                    const dayParsed = parseISO(dayStr);
-                    const normDay = startOfDay(dayParsed);
-                    const parsedRevStart = currentRevisedStart ? parseISO(currentRevisedStart) : null;
-                    const parsedRevEnd = currentRevisedEnd ? parseISO(currentRevisedEnd) : null;
-                    const normRevStart = parsedRevStart ? startOfDay(parsedRevStart) : null;
-                    const normRevEnd = parsedRevEnd ? startOfDay(parsedRevEnd) : null;
-
-                    // 1. Range Check (only if dates exist)
-                    const isActiveRange = (normRevStart && normRevEnd) 
-                        ? isWithinInterval(normDay, { start: normRevStart, end: normRevEnd }) 
-                        : false;
-                    
-                    // 2. Marker Checks (Strict String Equality)
-                    const isRevStart = revStartKey === dayKey;
-                    const isOrigStart = origStartKey === dayKey;
-                    const isOrigEnd = origEndKey === dayKey;
-                    const isRevEnd = revEndKey === dayKey;
-                    
-                    const isCombinedEnd = isOrigEnd && isRevEnd;
+                    const isOrigStart = dayStr === origStartStr;
+                    const isOrigEnd = dayStr === origEndStr;
+                    const isRevStart = dayStr === revStartStr;
+                    const isRevEnd = dayStr === revEndStr;
                     const isCombinedStart = isOrigStart && isRevStart;
+                    const isCombinedEnd = isOrigEnd && isRevEnd;
+                    const weeklyPlanData = getWeeklyPlanForLabel(row, day, revStartStr, revEndStr);
 
-                    // 3. Weekly Badge
-                    const weeklyPlanData = (currentRevisedStart && currentRevisedEnd)
-                        ? getWeeklyPlanForLabel(item, dayParsed, currentRevisedStart, currentRevisedEnd, currentDate)
-                        : null;
-
-                    // Styling
-                    const dayNum = getDate(day);
-                    const isEvenWeek = (dayNum > 7 && dayNum <= 14) || (dayNum > 21 && dayNum <= 28);
-                    const bgClass = isEvenWeek ? "bg-gray-50/30 dark:bg-gray-800/20" : "bg-white dark:bg-layout-dark";
-
-                    let cellClasses = `border-r border-gray-100 dark:border-gray-800 p-1 relative min-h-[50px] align-middle cursor-pointer ${bgClass}`;
-                    let inputClasses = `w-full h-8 text-center text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all mt-4 ${!isEditing || !isActiveRange ? "bg-gray-50 text-gray-500 cursor-not-allowed" : "bg-white text-gray-800"}`;
-
-                    if (isRevStart) inputClasses += " border-green-400 bg-green-50 dark:bg-green-900/20 text-green-700 ";
-                    else if (isCombinedEnd) inputClasses += " border-purple-400 bg-purple-50 dark:bg-purple-900/20 text-purple-700 ";
-                    else if (isRevEnd) inputClasses += " border-purple-400 bg-purple-50 dark:bg-purple-900/20 text-purple-700 ";
-                    else if (isOrigEnd) inputClasses += " border-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 ";
-                    else if (isOrigStart) inputClasses += " border-cyan-400 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 "; 
-                    
-                    else if (isActiveRange) inputClasses += " border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white ";
-                    else inputClasses += " bg-transparent border-none text-transparent pointer-events-none";
+                    let inputClass = "w-full h-7 text-center text-xs border rounded focus:ring-1 focus:ring-blue-500 focus:outline-none transition-all ";
+                    if (isActiveDay) {
+                      inputClass += "bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200";
+                      if (isRevStart) inputClass += " border-green-500 ring-1 ring-green-100";
+                      if (isRevEnd) inputClass += " border-purple-500 ring-1 ring-purple-100";
+                    } else {
+                      inputClass += "bg-transparent border-none text-transparent pointer-events-none";
+                    }
 
                     return (
-                      <td key={dayStr} className={cellClasses} onDoubleClick={() => handleCellDoubleClick(item, dayStr)}>
-                         {weeklyPlanData && (
-                            <div className="absolute top-0 left-0 right-0 z-20 flex justify-center mt-1 pointer-events-none">
-                              <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 border border-blue-200 dark:border-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
-                                {weeklyPlanData.label}
-                              </span>
-                            </div>
-                         )}
-
-                        <div className="absolute bottom-1 right-1 pointer-events-none z-20 flex gap-0.5">
-                             {isOrigStart && !isCombinedStart && <span className="text-[7px] w-4 h-3 flex items-center justify-center rounded-full font-bold text-white bg-cyan-500 shadow-sm" title="Original Start">OS</span>}
-                             
-                             {isRevStart && <span className="text-[7px] w-3 h-3 flex items-center justify-center rounded-full font-bold text-white bg-green-500 shadow-sm" title="Revised Start">S</span>}
-                             
-                             {isCombinedEnd ? (
-                                <span className="text-[7px] w-auto px-1 h-3 flex items-center justify-center rounded-full font-bold text-white bg-purple-500 shadow-sm" title="Original & Revised End">End</span>
-                             ) : (
-                                <>
-                                  {isOrigEnd && <span className="text-[7px] w-3 h-3 flex items-center justify-center rounded-full font-bold text-white bg-red-500 shadow-sm" title="Original End Date">E</span>}
-                                  {isRevEnd && <span className="text-[7px] w-3 h-3 flex items-center justify-center rounded-full font-bold text-white bg-purple-500 shadow-sm" title="Revised End Date">R</span>}
-                                </>
-                             )}
+                      <td key={dayStr} className={`border-r border-gray-100 dark:border-gray-800 p-1 relative min-h-[40px] align-middle ${isActiveDay ? "bg-blue-50/10" : ""}`}>
+                        {weeklyPlanData && (
+                          <div className="absolute -top-2 left-0 right-0 z-10 flex justify-center pointer-events-none">
+                            <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 border border-blue-200 dark:border-blue-700 text-[8px] font-bold px-1 rounded-sm shadow-sm whitespace-nowrap">{weeklyPlanData.label}</span>
+                          </div>
+                        )}
+                        <div className="absolute bottom-1 right-1 pointer-events-none z-10 flex gap-0.5">
+                          {isOrigStart && !isCombinedStart && <span className="text-[7px] w-4 h-3 flex items-center justify-center rounded-full font-bold text-white bg-cyan-500 shadow-sm" title="Original Start">OS</span>}
+                          {isRevStart && <span className="text-[7px] w-3 h-3 flex items-center justify-center rounded-full font-bold text-white bg-green-500 shadow-sm" title="Revised Start">S</span>}
+                          {isCombinedEnd ? <span className="text-[7px] w-auto px-1 h-3 flex items-center justify-center rounded-full font-bold text-white bg-purple-500 shadow-sm" title="Original & Revised End">End</span> : (
+                            <>
+                              {isOrigEnd && <span className="text-[7px] w-3 h-3 flex items-center justify-center rounded-full font-bold text-white bg-red-500 shadow-sm" title="Original End Date">E</span>}
+                              {isRevEnd && <span className="text-[7px] w-3 h-3 flex items-center justify-center rounded-full font-bold text-white bg-purple-500 shadow-sm" title="Revised End Date">R</span>}
+                            </>
+                          )}
                         </div>
-
-                        <input
-                          type="number"
-                          step="0.01"
-                          disabled={!isEditing || !isActiveRange}
-                          placeholder={isActiveRange ? "-" : ""}
-                          className={inputClasses}
-                          value={getInputValue(item, dayStr)}
-                          onChange={(e) => handleInputChange(item.wbs_id, dayStr, e.target.value)}
-                          onDoubleClick={(e) => e.stopPropagation()} 
-                        />
+                        <input type="number" disabled={!isEditing || !isActiveDay} className={inputClass} value={getCellValue(row, dayStr)} onChange={(e) => handleInputChange(row.row_index, dayStr, e.target.value)} />
                       </td>
                     );
                   })}

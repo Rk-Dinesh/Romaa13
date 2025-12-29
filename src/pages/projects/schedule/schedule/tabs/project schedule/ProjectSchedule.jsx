@@ -4,13 +4,16 @@ import { format, isValid, parseISO } from "date-fns";
 import {
   ChevronRight, ChevronDown,
   Layers, Folder, ClipboardList, Activity,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Pencil,
+  EllipsisVertical
 } from "lucide-react";
 import { TbFileExport } from "react-icons/tb";
 import { useProject } from "../../../../ProjectContext";
 import { API } from "../../../../../../constant";
 import Button from "../../../../../../components/Button";
 import UploadScheduleModal from "../../UploadScheduleModal";
+import EditScheduleModal from "./EditScheduleModal";
 
 // --- 1. Helper Functions ---
 const formatNumber = (num) => {
@@ -88,6 +91,10 @@ const ProjectSchedule = () => {
   const [loading, setLoading] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const fetchWBS = async () => {
     if (!tenderId) return;
     setLoading(true);
@@ -131,7 +138,30 @@ const ProjectSchedule = () => {
     });
   }, [flatRows, expandedIds]);
 
+  const handleEditClick = (row) => {
+    setSelectedRow(row);
+    setIsEditModalOpen(true);
+  };
 
+  const handleEditSubmit = async (payload) => {
+    if (!tenderId) return;
+    setIsSubmitting(true);
+    try {
+      // Assuming your API endpoint looks something like this
+      // console.log(payload,"data");
+      await axios.post(`${API}/schedulelite/update-schedule/${tenderId}`, payload);
+
+      // Close and Refresh
+      setIsEditModalOpen(false);
+      setSelectedRow(null);
+      fetchWBS(); // Refresh data to show changes
+    } catch (error) {
+      console.error("Error updating schedule:", error);
+      alert("Failed to update schedule. Check console.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full font-roboto-flex text-sm">
@@ -181,6 +211,9 @@ const ProjectSchedule = () => {
               </th>
               <th colSpan={3} className="border-b border-gray-300 dark:border-gray-700 p-1 text-center bg-gray-200 dark:bg-gray-700">
                 Status & Tracking
+              </th>
+              <th rowSpan={2} className="border-b border-l border-gray-300 dark:border-gray-700 p-1 text-center bg-gray-100 dark:bg-gray-800 sticky right-0 top-0 z-50 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                <EllipsisVertical/>
               </th>
             </tr>
 
@@ -232,6 +265,7 @@ const ProjectSchedule = () => {
                 else if (row.type === 'leaf') textDesc = "font-semibold text-blue-600 dark:text-gray-200";
 
                 const indentPx = row.level * 20 + 4;
+                const showAction = row.start && row.end;
 
                 return (
                   <tr key={row.uniqueKey} className={`${bgRow} hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group`}>
@@ -306,7 +340,7 @@ const ProjectSchedule = () => {
                                   className="flex items-center gap-1 text-gray-500 bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded whitespace-nowrap"
                                   title="original"
                                 >
-                                 {row.predecessor_actual}
+                                  {row.predecessor_actual}
                                 </span>
                               )}
                             </>
@@ -326,7 +360,17 @@ const ProjectSchedule = () => {
                         {row.status}
                       </span>
                     </td>
-
+                    <td className={`border-b border-l border-gray-100 dark:border-gray-800 px-2 py-2 text-center sticky right-0 z-30  ${stickyBg}`}>
+                      {showAction && (
+                        <button
+                          onClick={() => handleEditClick(row)}
+                          className="p-1 rounded hover:bg-blue-100 text-blue-600 dark:hover:bg-blue-900 dark:text-blue-400 transition-all"
+                          title="Edit Duration or Predecessor"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })
@@ -345,6 +389,16 @@ const ProjectSchedule = () => {
         <UploadScheduleModal
           onclose={() => setIsUploadModalOpen(false)}
           onSuccess={() => { fetchWBS(); setIsUploadModalOpen(false); }}
+        />
+      )}
+
+      {isEditModalOpen && selectedRow && (
+        <EditScheduleModal
+          isOpen={isEditModalOpen}
+          onClose={() => { setIsEditModalOpen(false); setSelectedRow(null); }}
+          rowData={selectedRow}
+          onSubmit={handleEditSubmit}
+          isSubmitting={isSubmitting}
         />
       )}
     </div>

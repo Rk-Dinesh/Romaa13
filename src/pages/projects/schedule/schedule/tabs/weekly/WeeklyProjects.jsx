@@ -5,15 +5,50 @@ import {
   BarChart3, 
   Loader2, 
   AlertCircle, 
-  CheckCircle2, 
-  Activity, 
-  Clock, 
-  ArrowRight,
-  CalendarDays,
   Calendar
 } from "lucide-react";
 import { API } from "../../../../../../constant"; 
 import { useProject } from "../../../../ProjectContext"; 
+
+// --- HELPERS ---
+
+// 1. Flattening (Preserves hierarchy levels for UI)
+// No Aggregation here, just flattening the tree to a list
+const flattenStructure = (nodes) => {
+  let flatList = [];
+
+  const traverse = (node, level) => {
+    // If it has a row_index, it's a renderable row.
+    if (node.row_index !== undefined) {
+      flatList.push({ ...node, level }); 
+    }
+    if (node.items && Array.isArray(node.items)) node.items.forEach(child => traverse(child, level + 1));
+    if (node.tasks && Array.isArray(node.tasks)) node.tasks.forEach(child => traverse(child, level + 1));
+    if (node.task_wbs_ids && Array.isArray(node.task_wbs_ids)) node.task_wbs_ids.forEach(child => traverse(child, level + 1));
+  };
+
+  if (Array.isArray(nodes)) {
+    nodes.forEach(node => traverse(node, 0)); 
+  }
+  
+  return flatList.sort((a, b) => a.row_index - b.row_index);
+};
+
+// 2. Styling Helper
+const getLevelStyle = (level) => {
+  switch (level) {
+    case 0: // L1
+      return "font-extrabold text-blue-900 dark:text-white uppercase tracking-wide";
+    case 1: // L2
+      return "font-bold text-red-700 dark:text-blue-400";
+    case 2: // L3
+      return "font-medium text-slate-900 dark:text-gray-300 text-sm";
+    case 3: // L4
+      return "font-normal text-blue-400 dark:text-gray-400 italic text-xs text-semibold";
+    default:
+      return "text-gray-800";
+  }
+};
 
 const WeeklyProjects = () => {
   const { tenderId } = useProject();
@@ -23,20 +58,19 @@ const WeeklyProjects = () => {
   const [selectedYear, setSelectedYear] = useState(today.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth());
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0); 
-  const [rawScheduleData, setRawScheduleData] = useState([]);
+  const [rows, setRows] = useState([]); 
   const [loading, setLoading] = useState(false);
 
   // --- Constants ---
   const years = Array.from({ length: 5 }, (_, i) => today.getFullYear() - 2 + i);
-
-  // --- Dynamic Week Ranges ---
+  
   const weeks = useMemo(() => {
     const daysInMonth = getDaysInMonth(new Date(selectedYear, selectedMonth));
     return [
-      { label: "Week 1", range: "01 - 07", key: "firstweek" },
-      { label: "Week 2", range: "08 - 14", key: "secondweek" },
-      { label: "Week 3", range: "15 - 21", key: "thirdweek" },
-      { label: "Week 4", range: `22 - ${daysInMonth}`, key: "fourthweek" },
+      { label: "Week 1", range: "01 - 07", number: 1 },
+      { label: "Week 2", range: "08 - 14", number: 2 },
+      { label: "Week 3", range: "15 - 21", number: 3 },
+      { label: "Week 4", range: `22 - ${daysInMonth}`, number: 4 },
     ];
   }, [selectedYear, selectedMonth]);
 
@@ -45,10 +79,11 @@ const WeeklyProjects = () => {
     if (!tenderId) return;
     setLoading(true);
     try {
-      // NOTE: Using get-daily-schedule as it returns the full 'schedule_data' nested array
-      const res = await axios.get(`${API}/schedule/get-daily-schedule/${tenderId}`);
-      if (res.data && res.data.data) {
-        setRawScheduleData(res.data.data);
+      const res = await axios.get(`${API}/schedulelite/get-daily-schedule/${tenderId}`);
+      if (res.data && res.data.data && res.data.data.structure) {
+        // Just flatten. No aggregation logic applied.
+        const flatData = flattenStructure(res.data.data.structure);
+        setRows(flatData);
       }
     } catch (err) {
       console.error("Error fetching weekly data:", err);
@@ -57,54 +92,53 @@ const WeeklyProjects = () => {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [tenderId]);
+  useEffect(() => { fetchData(); }, [tenderId]);
 
-  // --- Data Mapping Logic ---
+  // --- Map Display Data (Direct Read from API) ---
   const mappedData = useMemo(() => {
-    if (!rawScheduleData.length) return [];
+    if (!rows.length) return [];
 
-    // 1. Determine target Month Name (e.g., "December") to match API
     const targetMonthName = format(new Date(selectedYear, selectedMonth, 1), "MMMM");
+    const targetWeekNum = weeks[selectedWeekIndex].number;
 
-    return rawScheduleData.map((item) => {
-      // 2. Find the Month Object in schedule_data array
+    return rows.map((item) => {
+      let planned = 0;
+      let achieved = 0;
+      let lag = 0;
+
+      // 1. Find the Month Object
       const monthData = item.schedule_data?.find(m => 
         m.month_name === targetMonthName && m.year === selectedYear
       );
 
-      // 3. Find the Week Object inside the Month (by index or label)
-      // The API returns 'weeks' array: [firstweek, secondweek, thirdweek, fourthweek]
-      const weekData = monthData?.weeks?.[selectedWeekIndex];
-      
-      // 4. Extract Metrics (Safe Fallback)
-      const metrics = weekData?.metrics || { 
-        achieved_quantity: 0, 
-        planned_quantity: 0, 
-        lag_quantity: 0 
-      };
+      if (monthData && monthData.weeks) {
+        // 2. Find the Week Object
+        const weekData = monthData.weeks.find(w => w.week_number === targetWeekNum);
+        
+        if (weekData && weekData.metrics) {
+            planned = weekData.metrics.planned_quantity || 0;
+            achieved = weekData.metrics.achieved_quantity || 0;
+            lag = weekData.metrics.lag_quantity || 0;
+        }
+      }
 
       return {
         ...item,
-        display_planned: metrics.planned_quantity || 0,
-        display_achieved: metrics.achieved_quantity || 0,
-        display_lag: metrics.lag_quantity || 0,
-        // Helper: Row is active if there is any plan or execution this week
-        is_active_week: (metrics.planned_quantity > 0 || metrics.achieved_quantity > 0)
+        display_planned: planned,
+        display_achieved: achieved,
+        display_lag: lag,
       };
     });
-  }, [rawScheduleData, selectedYear, selectedMonth, selectedWeekIndex]);
+  }, [rows, selectedYear, selectedMonth, selectedWeekIndex, weeks]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-layout-dark  border border-gray-200 dark:border-gray-800 overflow-hidden ">
+    <div className="flex flex-col h-full bg-white dark:bg-layout-dark rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden font-roboto-flex text-sm">
       
-      {/* --- Header Control Bar --- */}
-      <div className="bg-white dark:bg-layout-dark border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+      {/* --- Header --- */}
+      <div className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-          
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
+            <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
               <BarChart3 size={20} />
             </div>
             <div>
@@ -114,41 +148,35 @@ const WeeklyProjects = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-
-            {/* Year & Month Selectors */}
-            <div className="flex items-center gap-2 bg-gray-100 dark:bg-layout-dark p-1 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2 bg-white dark:bg-gray-700 p-1 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
               <select
                 value={selectedMonth}
                 onChange={(e) => { setSelectedMonth(parseInt(e.target.value)); setSelectedWeekIndex(0); }}
-                className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 py-1.5 px-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-white dark:hover:bg-gray-800 transition-colors"
+                className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 py-1.5 px-3 rounded-md focus:outline-none cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
               >
                 {Array.from({ length: 12 }, (_, i) => (
                   <option key={i} value={i}>{format(new Date(2000, i, 1), "MMMM")}</option>
                 ))}
               </select>
-              <div className="w-px h-4 bg-gray-300 dark:bg-gray-700"></div>
+              <div className="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
               <select
                 value={selectedYear}
                 onChange={(e) => { setSelectedYear(parseInt(e.target.value)); setSelectedWeekIndex(0); }}
-                className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 py-1.5 px-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-white dark:hover:bg-gray-800 transition-colors"
+                className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 py-1.5 px-3 rounded-md focus:outline-none cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
               >
-                {years.map((year) => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
+                {years.map((year) => <option key={year} value={year}>{year}</option>)}
               </select>
             </div>
 
-            {/* Week Tabs */}
-            <div className="flex items-center bg-gray-100 dark:bg-layout-dark p-1 rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto max-w-full">
+            <div className="flex items-center bg-white dark:bg-gray-700 p-1 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm overflow-x-auto max-w-full">
               {weeks.map((week, idx) => (
                 <button
                   key={idx}
                   onClick={() => setSelectedWeekIndex(idx)}
-                  className={`
-                    flex flex-col items-center justify-center px-4 py-1.5 rounded-md text-xs font-medium transition-all min-w-[80px]
+                  className={`flex flex-col items-center justify-center px-4 py-1.5 rounded-md text-xs font-medium transition-all min-w-[80px]
                     ${selectedWeekIndex === idx 
-                      ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200 dark:border-gray-600" 
-                      : "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 hover:text-gray-700"}
+                      ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800" 
+                      : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600"}
                   `}
                 >
                   <span>{week.label}</span>
@@ -160,130 +188,104 @@ const WeeklyProjects = () => {
         </div>
       </div>
 
-      {/* --- Content Area --- */}
+      {/* --- Table --- */}
       <div className="flex-1 overflow-hidden relative bg-white dark:bg-layout-dark">
         {loading ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-layout-dark/80 z-10 backdrop-blur-sm">
             <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-3" />
-            <p className="text-sm text-gray-500 font-medium">Loading weekly data...</p>
+            <p className="text-sm text-gray-500 font-medium">Calculating schedule data...</p>
           </div>
         ) : (
-          <WeeklyTable data={mappedData} selectedWeekLabel={weeks[selectedWeekIndex].label} />
+           <div className="h-full overflow-auto custom-scrollbar">
+             <table className="w-full text-left border-collapse">
+               <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-40 shadow-sm">
+                 <tr>
+                   <th className="py-3 px-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 text-center w-[50px] bg-gray-50 dark:bg-gray-800 sticky left-0 z-50">#</th>
+                   <th className="py-3 px-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 min-w-[300px] bg-gray-50 dark:bg-gray-800 sticky left-[50px] z-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Description</th>
+                   <th className="py-3 px-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 text-center w-[60px]">Unit</th>
+                   <th className="py-3 px-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 text-right w-[80px]">Total Qty</th>
+                   <th className="py-2.5 px-3 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-right bg-indigo-50/50 dark:bg-indigo-900/20 w-[90px] border-l border-gray-200 dark:border-gray-700">Executed</th>
+                   <th className="py-2.5 px-3 text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider text-right bg-rose-50/50 dark:bg-rose-900/20 w-[90px] border-r border-gray-200 dark:border-gray-700">Balance</th>
+                   
+                   {/* Dynamic Week Header */}
+                   <th className="py-3 px-4 text-[11px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider text-right w-[110px] bg-blue-50/30 dark:bg-blue-900/10">
+                     {weeks[selectedWeekIndex].label} Plan
+                   </th>
+                   <th className="py-3 px-4 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider text-right w-[110px] bg-emerald-50/30 dark:bg-emerald-900/10">
+                     Achieved
+                   </th>
+                   <th className="py-3 px-4 text-[11px] font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider text-right w-[90px] bg-orange-50/30 dark:bg-orange-900/10 border-r border-gray-200 dark:border-gray-700">
+                     Lag
+                   </th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-layout-dark">
+                 {mappedData.map((row) => {
+                   const name = row.description || row.task_name || row.item_name || row.group_name || "Unknown";
+                   const indentPx = 10 + (row.level || 0) * 20;
+                   const textStyle = getLevelStyle(row.level || 0);
+                   const rowBgClass = row.level === 0 ? "bg-gray-50/50 dark:bg-gray-800/30" : "hover:bg-gray-50 dark:hover:bg-gray-800/50";
+                   
+                   const isLagging = row.display_lag > 0.01; 
+                   const lagColor = isLagging ? "text-red-600 dark:text-red-400 font-bold" : "text-gray-400 dark:text-gray-500";
+
+                   return (
+                     <tr key={row._id || row.row_index} className={`group ${rowBgClass} transition-colors`}>
+                       
+                       {/* Sticky Index */}
+                       <td className="sticky left-0 z-30 bg-white dark:bg-layout-dark border-r border-gray-200 dark:border-gray-700 py-3 px-4 text-center text-xs text-slate-400 group-hover:bg-gray-50 dark:group-hover:bg-gray-800">
+                         {row.row_index}
+                       </td>
+
+                       {/* Sticky Description with Indentation */}
+                       <td className="sticky left-[50px] z-30 bg-white dark:bg-layout-dark border-r border-gray-200 dark:border-gray-700 py-3 px-4 group-hover:bg-gray-50 dark:group-hover:bg-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                          <div className="flex flex-col" style={{ paddingLeft: `${indentPx}px` }}>
+                             <span className={`${textStyle} truncate max-w-[350px] text-xs`} title={name}>{name}</span>
+                          </div>
+                       </td>
+
+                       <td className="py-3 px-4 text-xs text-center border-r border-gray-100 dark:border-gray-800">
+                         {row.unit && (
+                           <span className="inline-block px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-medium">
+                             {row.unit}
+                           </span>
+                         )}
+                       </td>
+                       <td className="py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 text-right border-r border-gray-100 dark:border-gray-800">
+                         {row.quantity?.toLocaleString()}
+                       </td>
+                       <td className="py-3 px-4 text-sm text-right font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50/10 dark:bg-indigo-900/5">
+                         {row.executed_quantity > 0 ? row.executed_quantity.toLocaleString() : "-"}
+                       </td>
+                       <td className="py-3 px-4 text-sm text-right font-semibold text-rose-700 dark:text-rose-400 bg-rose-50/10 dark:bg-rose-900/5 border-r border-gray-200 dark:border-gray-700">
+                         {row.balance_quantity?.toLocaleString()}
+                       </td>
+
+                       {/* Weekly Data Columns */}
+                       <td className="py-3 px-4 text-right bg-blue-50/30 dark:bg-blue-900/5 border-r border-gray-100 dark:border-gray-800">
+                         <span className={`text-sm font-bold ${row.display_planned > 0 ? "text-blue-700 dark:text-blue-400" : "text-gray-300 dark:text-gray-600"}`}>
+                           {row.display_planned > 0 ? row.display_planned.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2}) : "-"}
+                         </span>
+                       </td>
+                       <td className="py-3 px-4 text-right bg-green-50/30 dark:bg-green-900/5 border-r border-gray-100 dark:border-gray-800">
+                         <span className={`text-sm font-bold ${row.display_achieved > 0 ? "text-green-700 dark:text-green-400" : "text-gray-300 dark:text-gray-600"}`}>
+                           {row.display_achieved > 0 ? row.display_achieved.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2}) : "-"}
+                         </span>
+                       </td>
+                       <td className={`py-3 px-4 text-right bg-orange-50/30 dark:bg-orange-900/5 border-r border-gray-200 dark:border-gray-700 ${lagColor}`}>
+                         <span className="text-sm font-mono">
+                           {row.display_lag === 0 ? "-" : row.display_lag.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}
+                         </span>
+                       </td>
+
+                     </tr>
+                   );
+                 })}
+               </tbody>
+             </table>
+           </div>
         )}
       </div>
-    </div>
-  );
-};
-
-// --- Sub-Component: Table ---
-const WeeklyTable = ({ data, selectedWeekLabel }) => {
-  if (!data || data.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-gray-400">
-        <AlertCircle className="w-8 h-8 opacity-50" />
-        <p className="text-sm font-medium">No schedule data found for this period.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-full overflow-auto custom-scrollbar px-1">
-      <table className="w-full text-left border-collapse ">
-        <thead className="bg-gray-50 dark:bg-layout-dark sticky top-0  shadow-sm">
-          <tr>
-            <th className="py-3 px-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 w-[100px text-center]">#</th>
-            <th className="py-3 px-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 w-[100px]">WBS ID</th>
-            <th className="py-3 px-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 min-w-[200px]">Description</th>
-            <th className="py-3 px-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 text-center w-[60px]">Unit</th>
-            <th className="py-3 px-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 text-right w-[60px]"> Qty</th>
-            <th className="py-2.5 px-3 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-right bg-indigo-50/50 dark:bg-indigo-900/20 w-[70px]">Exec</th>
-            <th className="py-2.5 px-3 text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider text-right bg-rose-50/50 dark:bg-rose-900/20 w-[70px] border-r border-gray-200 dark:border-gray-700">Bal</th>
-
-            {/* Weekly Section */}
-            <th className="py-3 px-4 text-[11px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider text-right w-[100px] border-l border-gray-200 dark:border-gray-700 bg-blue-50/30 dark:bg-blue-900/10">
-            Plan
-            </th>
-            <th className="py-3 px-4 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider text-right w-[100px] bg-emerald-50/30 dark:bg-emerald-900/10">
-              {/* {selectedWeekLabel} Done */} Achieved
-            </th>
-            <th className="py-3 px-4 text-[11px] font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider text-right w-[80px] bg-orange-50/30 dark:bg-orange-900/10">
-              Lag
-            </th>
-          </tr>
-        </thead>
-
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-layout-dark">
-          {data.map((row, index) => {
-            // Row Visibility Logic: Dim non-active rows for better focus
-            const isActive = row.is_active_week;
-            const rowClass = isActive ? "bg-white dark:bg-layout-dark" : "bg-gray-50/60 dark:bg-layout-dark/60 opacity-50 grayscale-[0.8]";
-
-            // Lag Color Logic (Positive = Behind = Red)
-            const isLagging = row.display_lag > 0.01; 
-            const lagColor = isLagging ? "text-red-600 dark:text-red-400 font-bold" : "text-gray-400 dark:text-gray-500";
-
-            // Dates
-            const startDate = row.start_date ? format(new Date(row.start_date), "dd MMM") : "-";
-            const endDate = (row.revised_end_date || row.end_date) ? format(new Date(row.revised_end_date || row.end_date), "dd MMM") : "-";
-
-            return (
-              <tr key={row.wbs_id} className={`${rowClass} hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group`}>
-                <td className="py-3 px-4 text-sm text-center font-medium text-gray-600 dark:text-gray-300">
-                  {index + 1}
-                </td>
-                <td className="py-3 px-4 text-sm font-mono font-medium text-gray-600 dark:text-gray-300">
-                  {row.wbs_id}
-                </td>
-                <td className="py-3 px-4">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[280px]" title={row.description}>
-                      {row.description}
-                    </span>
-                    <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-1">
-                      <Calendar size={10} />
-                      <span>{startDate}</span>
-                      <ArrowRight size={8} />
-                      <span>{endDate}</span>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-4 text-xs text-center">
-                  <span className="inline-block px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-                    {row.unit}
-                  </span>
-                </td>
-                <td className="py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 text-right">
-                  {row.quantity?.toLocaleString()}
-                </td>
-               <td className="py-2.5 px-3 text-sm text-right font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50/30 dark:bg-indigo-900/10">
-                  {row.executed_quantity > 0 ? row.executed_quantity.toLocaleString() : "-"}
-                </td>
-                <td className="py-2.5 px-3 text-sm text-right font-semibold text-rose-700 dark:text-rose-400 bg-rose-50/30 dark:bg-rose-900/10 border-r border-gray-100 dark:border-gray-800">
-                  {row.balance_quantity?.toLocaleString()}
-                </td>
-
-                {/* Weekly Data */}
-                <td className="py-3 px-4 text-right bg-blue-50/30 dark:bg-blue-900/5 border-l border-gray-100 dark:border-gray-800">
-                  <span className={`text-sm font-bold ${row.display_planned > 0 ? "text-blue-700 dark:text-blue-400" : "text-gray-300 dark:text-gray-600"}`}>
-                  {row.display_planned > 0 ? row.display_planned.toFixed(2) : "-"}
-                  </span>
-                </td>
-                <td className="py-3 px-4 text-right bg-green-50/30 dark:bg-green-900/5 border-l border-gray-100 dark:border-gray-800">
-                  <span className={`text-sm font-bold ${row.display_achieved > 0 ? "text-green-700 dark:text-green-400" : "text-gray-300 dark:text-gray-600"}`}>
-                  {row.display_achieved > 0 ? row.display_achieved.toFixed(2) : "-"}
-                  </span>
-                </td>
-                <td className={`py-3 px-4 text-right border-l border-gray-100 dark:border-gray-800 ${lagColor} bg-orange-50/30 dark:bg-orange-900/5`}>
-                  <span className="text-sm font-mono">
-                    {row.display_lag === 0 ? "-" : row.display_lag.toFixed(2)}
-                  </span>
-                </td>
-
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
     </div>
   );
 };
