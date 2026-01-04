@@ -21,10 +21,10 @@ const PurchaseEnquiry = () => {
 
   const fetchRequests = async () => {
     try {
-      const tenderId = localStorage.getItem("tenderId");
+    
 
       const res = await axios.get(
-        `${API}/purchaseorderrequest/api/getbyIdQuotationRequested/${tenderId}`
+        `${API}/purchaseorderrequest/api/getbyIdQuotationRequested`
       );
 
 

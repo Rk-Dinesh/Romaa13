@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from "react";
-import {
-  ChevronLeft,
-  MapPin,
-  Calendar,
-  User,
-  FileText,
+import { 
+  ChevronLeft, 
+  MapPin, 
+  Calendar, 
+  User, 
+  FileText, 
   Award,
   DollarSign,
   AlertCircle,
   Briefcase,
   CheckCircle2,
   Clock,
-  XCircle
+  XCircle,
+  AlertTriangle
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -21,13 +22,13 @@ import Button from "../../../components/Button";
 import Title from "../../../components/Title";
 import { PiLinkBold } from "react-icons/pi";
 
-
 // --- Helper: Status Badge ---
 const StatusBadge = ({ status }) => {
   const styles = {
     "Quotation Requested": "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800",
     "Pending": "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800",
     "Approved": "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
+    "Rejected": "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
   };
   return (
     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${styles[status] || "bg-gray-100 text-gray-600 border-gray-200"}`}>
@@ -36,7 +37,7 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-// --- Helper: Info Card Container ---
+// --- Helper: Info Card ---
 const InfoCard = ({ title, icon, children }) => (
   <div className="bg-white dark:bg-layout-dark rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden h-full flex flex-col">
     <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 flex items-center gap-2">
@@ -49,7 +50,6 @@ const InfoCard = ({ title, icon, children }) => (
   </div>
 );
 
-// --- Helper: Data Row ---
 const DetailRow = ({ label, value, highlight = false }) => (
   <div className="flex justify-between items-start border-b border-gray-50 dark:border-gray-800 pb-2 last:border-0 last:pb-0">
     <span className="text-xs font-semibold text-gray-400 uppercase">{label}</span>
@@ -59,36 +59,86 @@ const DetailRow = ({ label, value, highlight = false }) => (
   </div>
 );
 
+// --- Confirmation Modal Component ---
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, actionType, vendorName }) => {
+  if (!isOpen) return null;
+
+  const isApprove = actionType === "Approved";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700 transform transition-all scale-100">
+        <div className="p-6 text-center">
+          <div className={`mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center ${isApprove ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+            {isApprove ? <CheckCircle2 size={32} /> : <AlertTriangle size={32} />}
+          </div>
+          
+          <h3 className="mb-2 text-xl font-bold text-gray-800 dark:text-white">
+            {isApprove ? "Accept Quotation?" : "Reject Quotation?"}
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+            Are you sure you want to <span className={`font-bold ${isApprove ? "text-green-600" : "text-red-600"}`}>{isApprove ? "Accept" : "Reject"}</span> the quotation from <span className="font-semibold text-gray-800 dark:text-gray-200">"{vendorName}"</span>?
+            {isApprove && <span className="block mt-2 text-xs bg-yellow-50 text-yellow-700 p-2 rounded border border-yellow-200">Note: Accepting this will automatically reject other pending quotations.</span>}
+          </p>
+
+          <div className="flex gap-3 justify-center">
+            <button 
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={onConfirm}
+              className={`px-5 py-2.5 rounded-lg text-white text-sm font-medium shadow-md transition-colors flex items-center gap-2 ${
+                isApprove 
+                  ? "bg-green-600 hover:bg-green-700" 
+                  : "bg-red-600 hover:bg-red-700"
+              }`}
+            >
+              {isApprove ? "Yes, Accept" : "Yes, Reject"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// --- Main Component ---
 const ViewPurchaseEnquiry = () => {
   const navigate = useNavigate();
   const location = useLocation();
-
-  // 1. Get Params from Navigation State
+  
   const passedItem = location.state?.item || {};
-  // Fallback: If navigating directly, you might need useParams() here instead
   const requestIdParam = passedItem.requestId;
   const projectIdParam = passedItem.projectName;
-
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 2. Fetch Data from API
+  // Modal State
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    quotationId: null,
+    actionType: null, // "Approved" or "Rejected"
+    vendorName: ""
+  });
+
+  // Fetch Data
   useEffect(() => {
     const fetchRequest = async () => {
       if (!requestIdParam || !projectIdParam) {
         setLoading(false);
         return;
       }
-
       try {
         const res = await axios.get(
           `${API}/purchaseorderrequest/api/getQuotationRequested/${projectIdParam}/${requestIdParam}`
         );
-        // Assuming API returns array in data.data based on your sample, we take the first item
         const fetchedData = Array.isArray(res.data?.data) ? res.data.data[0] : res.data?.data;
         setData(fetchedData);
-        console.log("Fetched Data:", fetchedData);
       } catch (err) {
         console.error("Error fetching request:", err);
         toast.error("Failed to load request details");
@@ -96,11 +146,70 @@ const ViewPurchaseEnquiry = () => {
         setLoading(false);
       }
     };
-
     fetchRequest();
   }, [requestIdParam, projectIdParam]);
 
-  // 3. Loading State
+  // 1. Triggered when user clicks a button in table
+  const openConfirmation = (quotationId, actionType, vendorName) => {
+    setModalConfig({
+      isOpen: true,
+      quotationId,
+      actionType,
+      vendorName
+    });
+  };
+
+  // 2. Triggered when user clicks "Yes" in Modal
+  const handleConfirmAction = async () => {
+    const { quotationId, actionType } = modalConfig;
+    if (!data) return;
+
+    try {
+      const endpoint = actionType === "Approved"
+        ? `${API}/purchaseorderrequest/api/purchase-requests/${requestIdParam}/approve-vendor`
+        : `${API}/purchaseorderrequest/api/purchase-requests/${requestIdParam}/reject-vendor`;
+
+      const res = await axios.put(endpoint, { quotationId });
+
+      if (res.data.success) {
+        toast.success(`Quotation ${actionType} successfully!`);
+
+        // Optimistic UI Update
+        setData((prev) => {
+          if (actionType === "Approved") {
+            return {
+              ...prev,
+              status: "Work Order Issued",
+              vendorQuotations: prev.vendorQuotations.map((q) => {
+                if (q.quotationId === quotationId) return { ...q, approvalStatus: "Approved" };
+                return { ...q, approvalStatus: "Rejected" };
+              }),
+            };
+          } 
+          // Rejected logic
+          return {
+            ...prev,
+            vendorQuotations: prev.vendorQuotations.map((q) =>
+              q.quotationId === quotationId ? { ...q, approvalStatus: "Rejected" } : q
+            ),
+          };
+        });
+      }
+    } catch (error) {
+      console.error("Action Error:", error);
+      toast.error(error.response?.data?.message || "Action Failed");
+    } finally {
+      // Close Modal
+      setModalConfig({ ...modalConfig, isOpen: false });
+    }
+  };
+
+  const handleCopyLink = () => {
+    const link = `${window.location.origin}/purchase/enquiryform/${projectIdParam}/${requestIdParam}`;
+    navigator.clipboard.writeText(link);
+    toast.success("Enquiry link copied!");
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -123,73 +232,14 @@ const ViewPurchaseEnquiry = () => {
     );
   }
 
-  // 5. Logic to Find L1 (Lowest Bidder)
+  // Logic to Find L1
   const quotations = data.vendorQuotations || [];
   const sortedQuotes = [...quotations].sort((a, b) => a.totalQuotedValue - b.totalQuotedValue);
   const l1VendorId = sortedQuotes.length > 0 ? sortedQuotes[0].quotationId : null;
 
-    const handleCopyLink = () => {
-      const link = `${window.location.origin}/purchase/enquiryform/${projectIdParam}/${requestIdParam}`;
-      navigator.clipboard.writeText(link);
-      toast.success("Enquiry link copied!");
-    };
-
-// Handle Accept/Reject Action
-  const handleAction = async (quotationId, action) => {
-    if (!data) return;
-
-    try {
-      // 1. Determine which API endpoint to call
-      const endpoint = action === "Approved"
-        ? `${API}/purchaseorderrequest/api/purchase-requests/${requestIdParam}/approve-vendor`
-        : `${API}/purchaseorderrequest/api/purchase-requests/${requestIdParam}/reject-vendor`;
-
-      // 2. Make the API Call
-      const res = await axios.put(endpoint, { 
-        quotationId: quotationId 
-      });
-
-
-      if (res.data.success) {
-        toast.success(`Quotation ${action} successfully!`);
-
-        // 3. Optimistic UI Update
-        setData((prev) => {
-          // If Approved, update overall status and set others to Rejected (visual consistency)
-          if (action === "Approved") {
-            return {
-              ...prev,
-              status: "Work Order Issued", // Update overall status
-              vendorQuotations: prev.vendorQuotations.map((q) => {
-                if (q.quotationId === quotationId) {
-                  return { ...q, approvalStatus: "Approved" };
-                } else {
-                  return { ...q, approvalStatus: "Rejected" };
-                }
-              }),
-            };
-          } 
-          
-          // If Rejected, just update that specific quote
-          return {
-            ...prev,
-            vendorQuotations: prev.vendorQuotations.map((q) =>
-              q.quotationId === quotationId 
-                ? { ...q, approvalStatus: "Rejected" } 
-                : q
-            ),
-          };
-        });
-      }
-    } catch (error) {
-      console.error("Action Error:", error);
-      toast.error(error.response?.data?.message || "Action Failed");
-    }
-  };
-
   return (
     <div className="h-full flex flex-col dark:bg-[#0b0f19] p-4 overflow-hidden font-roboto-flex">
-
+      
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-3 gap-4">
         <div>
@@ -199,29 +249,27 @@ const ViewPurchaseEnquiry = () => {
             page_title={data.requestId}
           />
           <div className="mt-2 flex items-center gap-3">
-            <StatusBadge status={data.status} />
-            <span className="text-xs text-gray-400 flex items-center gap-1">
-              <Calendar size={12} /> Req Date: {new Date(data.requestDate).toLocaleDateString()}
-            </span>
+             <StatusBadge status={data.status} />
+             <span className="text-xs text-gray-400 flex items-center gap-1">
+               <Calendar size={12}/> Req Date: {new Date(data.requestDate).toLocaleDateString()}
+             </span>
           </div>
         </div>
-
-      <div className="flex  gap-2">
         
-        <Button
-          button_name="Copy Link"
-          button_icon={<PiLinkBold size={18} />}
-          onClick={handleCopyLink}
-          className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
-        />
+        <div className="flex gap-2">
           <Button
-          button_name="Back"
-          button_icon={<ChevronLeft size={18} />}
-          onClick={() => navigate("..")}
-          className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
-        />
-      </div>
-        
+            button_name="Copy Link"
+            button_icon={<PiLinkBold size={18} />}
+            onClick={handleCopyLink}
+            className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
+          />
+          <Button
+            button_name="Back"
+            button_icon={<ChevronLeft size={18} />}
+            onClick={() => navigate("..")}
+            className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
+          />
+        </div>
       </div>
 
       {/* SCROLLABLE CONTENT */}
@@ -236,21 +284,19 @@ const ViewPurchaseEnquiry = () => {
             <DetailRow label="Project ID" value={data.projectId} />
             <DetailRow label="Required By" value={new Date(data.requiredByDate).toLocaleDateString()} highlight />
             <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-100 dark:border-gray-700">
-              <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">Description</p>
-              <p className="text-xs text-gray-600 dark:text-gray-300 italic">"{data.description}"</p>
+               <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">Description</p>
+               <p className="text-xs text-gray-600 dark:text-gray-300 italic">"{data.description}"</p>
             </div>
           </InfoCard>
 
-          {/* Card 2: Site Details */}
-          <InfoCard title="Site Details" icon={<MapPin size={16} className="text-emerald-500" />}>
+          <InfoCard title="Site Details" icon={<MapPin size={16} className="text-emerald-500"/>}>
             <DetailRow label="Site Name" value={data.siteDetails?.siteName} />
             <DetailRow label="Location" value={data.siteDetails?.location} />
             <DetailRow label="Incharge" value={data.siteDetails?.siteIncharge} />
             <DetailRow label="PO Status" value={data.purchaseOrder?.progressStatus} />
           </InfoCard>
 
-          {/* Card 3: Invited Vendors */}
-          <InfoCard title="Invited Vendors" icon={<User size={16} className="text-purple-500" />}>
+          <InfoCard title="Invited Vendors" icon={<User size={16} className="text-purple-500"/>}>
             {data.permittedVendor?.length > 0 ? (
               <div className="space-y-2 max-h-[150px] overflow-y-auto custom-scrollbar">
                 {data.permittedVendor.map((v) => {
@@ -278,19 +324,17 @@ const ViewPurchaseEnquiry = () => {
               <p className="text-sm text-gray-400 italic text-center py-4">No specific vendors assigned.</p>
             )}
           </InfoCard>
-
         </div>
 
-        {/* --- COMPARATIVE STATEMENT TABLE --- */}
-        <div className="bg-white dark:bg-layout-dark rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-
+        {/* COMPARATIVE STATEMENT */}
+        <div className="bg-white dark:bg-layout-dark rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 dark:bg-gray-800/50 gap-4">
             <div>
               <h3 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
                 <Award className="text-amber-500" size={20} />
                 Comparative Statement
               </h3>
-              <p className="text-xs text-gray-500 mt-1">Comparison of {quotations.length} received quotations.</p>
+              <p className="text-xs text-gray-500 mt-1">Comparing {quotations.length} received quotations.</p>
             </div>
             {l1VendorId && (
               <div className="flex items-center gap-2 text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-3 py-2 rounded-lg border border-green-200 dark:border-green-800">
@@ -309,14 +353,11 @@ const ViewPurchaseEnquiry = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left border-collapse">
                 <thead>
-                  {/* --- TABLE HEADER --- */}
                   <tr className="bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 text-xs uppercase font-bold border-b dark:border-gray-700">
                     {/* Fixed Material Column */}
                     <th className="px-6 py-4 min-w-[200px] border-r dark:border-gray-700 sticky left-0 bg-gray-100 dark:bg-gray-900 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                       Material Request
                     </th>
-
-                    {/* Dynamic Vendor Columns */}
                     {quotations.map((vendor) => (
                       <th key={vendor._id} className={`px-6 py-4 min-w-[240px] text-center border-r dark:border-gray-700 relative align-top ${vendor.quotationId === l1VendorId ? "bg-green-50/50 dark:bg-green-900/10" : ""}`}>
                         {vendor.quotationId === l1VendorId && (
@@ -325,7 +366,7 @@ const ViewPurchaseEnquiry = () => {
                         <div className="flex flex-col items-center gap-1">
                           <span className="text-sm text-gray-800 dark:text-white font-bold">{vendor.vendorName}</span>
                           <span className="text-[10px] font-normal text-gray-500 flex items-center gap-1">
-                            <Briefcase size={10} /> {vendor.quotationId}
+                            <Briefcase size={10}/> {vendor.quotationId}
                           </span>
                           <span className="text-[10px] font-normal text-gray-400">
                             {new Date(vendor.quotationDate).toLocaleDateString()}
@@ -335,12 +376,9 @@ const ViewPurchaseEnquiry = () => {
                     ))}
                   </tr>
                 </thead>
-
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {/* --- MATERIAL ROWS --- */}
                   {data.materialsRequired?.map((reqMat, idx) => (
                     <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                      {/* Material Info */}
                       <td className="px-6 py-4 border-r dark:border-gray-700 sticky left-0 bg-white dark:bg-layout-dark z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                         <p className="font-bold text-gray-700 dark:text-gray-200">{reqMat.materialName}</p>
                         <div className="flex items-center gap-2 mt-1">
@@ -349,8 +387,6 @@ const ViewPurchaseEnquiry = () => {
                           </span>
                         </div>
                       </td>
-
-                      {/* Vendor Quote Data */}
                       {quotations.map((vendor) => {
                         const quoteItem = vendor.quoteItems?.find(q => q.materialName === reqMat.materialName);
                         return (
@@ -372,8 +408,6 @@ const ViewPurchaseEnquiry = () => {
                       })}
                     </tr>
                   ))}
-
-                  {/* --- GRAND TOTAL ROW --- */}
                   <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-200 dark:border-gray-700">
                     <td className="px-6 py-4 text-right font-bold text-gray-600 dark:text-gray-300 uppercase text-xs sticky left-0 bg-gray-50 dark:bg-gray-800 z-10 border-r dark:border-gray-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                       Total Quoted Value
@@ -390,25 +424,22 @@ const ViewPurchaseEnquiry = () => {
                       </td>
                     ))}
                   </tr>
-
-                  {/* --- ACTIONS ROW --- */}
                   <tr className="bg-white dark:bg-layout-dark border-t border-gray-200 dark:border-gray-700">
                     <td className="px-6 py-4 text-right font-bold text-gray-400 uppercase text-xs sticky left-0 bg-white dark:bg-layout-dark z-10 border-r dark:border-gray-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                       Decision
                     </td>
                     {quotations.map((vendor) => (
                       <td key={vendor._id} className={`px-6 py-4 text-center border-r dark:border-gray-700 ${vendor.quotationId === l1VendorId ? "bg-green-50/10 dark:bg-green-900/5" : ""}`}>
-
                         {vendor.approvalStatus === "Pending" ? (
                           <div className="flex justify-center gap-3">
                             <button
-                              onClick={() => handleAction(vendor.quotationId, "Approved")}
+                              onClick={() => openConfirmation(vendor.quotationId, "Approved", vendor.vendorName)}
                               className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700 transition-colors shadow-sm"
                             >
                               <CheckCircle2 size={14} /> Accept
                             </button>
                             <button
-                              onClick={() => handleAction(vendor.quotationId, "Rejected")}
+                              onClick={() => openConfirmation(vendor.quotationId, "Rejected", vendor.vendorName)}
                               className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-600 rounded text-xs font-semibold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                             >
                               <XCircle size={14} /> Reject
@@ -417,18 +448,24 @@ const ViewPurchaseEnquiry = () => {
                         ) : (
                           <StatusBadge status={vendor.approvalStatus} />
                         )}
-
                       </td>
                     ))}
                   </tr>
-
                 </tbody>
               </table>
             </div>
           )}
         </div>
-
       </div>
+
+      {/* Confirmation Modal Render */}
+      <ConfirmationModal 
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+        onConfirm={handleConfirmAction}
+        actionType={modalConfig.actionType}
+        vendorName={modalConfig.vendorName}
+      />
     </div>
   );
 };

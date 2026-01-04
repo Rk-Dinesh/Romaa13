@@ -7,16 +7,6 @@ import axios from "axios";
 import { API } from "../../../constant";
 
 
-// const Columns = [
-
-//   { label: "Project Name", key: "projectname" },
-//     { label: "Project ID", key: "projectid" },
-//   { label: "location", key: "location" },
-//     { label: "Supplier ID", key: "supplierid" },
-//   { label: "Date", key: "date" },
-//   { label: "Project Value", key: "projectvalue" },
-//   { label: "Due Date", key: "duedate" },
-// ];
 
 const PurchaseOrder = () => {
   const Columns = [
@@ -25,14 +15,15 @@ const PurchaseOrder = () => {
     { label: "Project", key: "projectName" },
     { label: "Date of Requirements", key: "requiredOn" },
     { label: "Requested by", key: "siteIncharge" },
+    { label: "Status", key: "status" },
   ];
   const [data, setData] = useState([]);
    const fetchRequests = async () => {
     try {
-      const tenderId = localStorage.getItem("tenderId");
+
 
       const res = await axios.get(
-        `${API}/purchaseorderrequest/api/getQuotationApproved`
+        `${API}/purchaseorderrequest/api/getbyIdQuotationApproved`
       );
 
 
@@ -48,6 +39,8 @@ const PurchaseOrder = () => {
           : "-",
 
         siteIncharge: item.siteDetails?.siteIncharge || "N/A",
+        status: item.status,
+
       }));
 
       setData(formatted || []);
