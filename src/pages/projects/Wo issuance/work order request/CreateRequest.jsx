@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { IoClose } from "react-icons/io5";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -7,7 +7,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { API } from "../../../../constant";
 
-// Validation Schema
+/* ---------------- Validation Schema ---------------- */
 const workOrderSchema = yup.object().shape({
   title: yup.string().required("Title is required"),
   description: yup.string().required("Description is required"),
@@ -17,6 +17,9 @@ const workOrderSchema = yup.object().shape({
     siteIncharge: yup.string().required("Site incharge required"),
   }),
   requiredByDate: yup.string().required("Required by date is required"),
+
+  // ✅ ADDED
+  vendors: yup.array().min(1, "Select at least one vendor"),
 });
 
 const defaultValues = {
@@ -24,10 +27,12 @@ const defaultValues = {
   description: "",
   siteDetails: { siteName: "", location: "", siteIncharge: "" },
   requiredByDate: "",
+
 };
 
 const CreateRequest = ({ onclose, onSuccess }) => {
   const tenderId = localStorage.getItem("tenderId");
+
   const {
     register,
     handleSubmit,
@@ -39,6 +44,7 @@ const CreateRequest = ({ onclose, onSuccess }) => {
   });
 
   const [materials, setMaterials] = useState([]);
+  const [vendors, setVendors] = useState([]); // ✅ ADDED
   const [materialInput, setMaterialInput] = useState({
     materialName: "",
     quantity: "",
@@ -46,14 +52,28 @@ const CreateRequest = ({ onclose, onSuccess }) => {
   });
   const [loading, setLoading] = useState(false);
 
+  /* ---------------- Fetch Vendors ---------------- */
+  useEffect(() => {
+    const fetchVendors = async () => {
+      try {
+        const res = await axios.get(
+          `${API}/permittedvendor/permitted-vendors/${tenderId}`
+        );
+        setVendors(res.data?.data || []);
+      } catch {
+        toast.error("Failed to load vendors");
+      }
+    };
+    fetchVendors();
+  }, []);
+
   const handleMaterialAdd = () => {
     const { materialName, quantity, unit } = materialInput;
     if (!materialName || !quantity || !unit) {
       toast.warning("Please fill all material fields before adding.");
       return;
     }
-
-    setMaterials((prev) => [...prev, { materialName, quantity, unit }]);
+    setMaterials((prev) => [...prev, materialInput]);
     setMaterialInput({ materialName: "", quantity: "", unit: "" });
   };
 
@@ -67,26 +87,34 @@ const CreateRequest = ({ onclose, onSuccess }) => {
       return;
     }
 
+    const selectedVendors = vendors
+      .filter((v) => data.vendorId.includes(v.vendor_id))
+      .map((v) => ({
+        vendor_id: v.vendor_id,
+        vendor_name: v.vendor_name,
+      }));
+    console.log(selectedVendors);
+
     const finalData = {
       ...data,
       projectId: tenderId,
       materialsRequired: materials,
+
+      // ✅ send full vendor object
+      vendors: selectedVendors,
     };
+
+    console.log(finalData);
 
     try {
       setLoading(true);
-      const res = await axios.post(
-        `${API}/workorderrequest/api/create`,
-        finalData
-      );
-
+      await axios.post(`${API}/workorderrequest/api/create`, finalData);
       toast.success("Work order created successfully!");
       reset();
-      onSuccess();
       setMaterials([]);
+      onSuccess();
       onclose();
     } catch (error) {
-      console.error(error);
       toast.error(
         error.response?.data?.message || "Server error. Please try again."
       );
@@ -170,7 +198,7 @@ const CreateRequest = ({ onclose, onSuccess }) => {
               </p>
             </section>
 
-            {/* Date Field */}
+            {/* Required Date */}
             <section>
               <label className="font-medium text-white">Required By Date</label>
               <input
@@ -181,6 +209,31 @@ const CreateRequest = ({ onclose, onSuccess }) => {
               <p className="text-xs text-red-500">
                 {errors.requiredByDate?.message}
               </p>
+            </section>
+
+            {/* Vendor Selection (SAME UI STYLE) */}
+            <section>
+              <h2 className="text-lg font-semibold text-white mb-2">
+                Vendor Details
+              </h2>
+
+              <div className="border border-border-dark-grey rounded px-3 py-2 max-h-40 overflow-y-auto">
+                {vendors.map((vendor) => (
+                  <label
+                    key={vendor._id}
+                    className="flex items-center gap-2 text-white text-sm mb-2"
+                  >
+                    <input
+                      type="checkbox"
+                      value={vendor.vendor_id}
+                      {...register("vendorId")}
+                    />
+                    {vendor.vendor_name}
+                  </label>
+                ))}
+              </div>
+
+              <p className="text-xs text-red-500">{errors.vendorId?.message}</p>
             </section>
 
             {/* Materials Section */}
@@ -237,38 +290,20 @@ const CreateRequest = ({ onclose, onSuccess }) => {
                 <table className="w-full text-white text-sm border border-border-dark-grey">
                   <thead>
                     <tr className="bg-[#1f1f1f] text-left">
-                      <th className="px-3 py-2 border border-border-dark-grey">
-                        #
-                      </th>
-                      <th className="px-3 py-2 border border-border-dark-grey">
-                        Material
-                      </th>
-                      <th className="px-3 py-2 border border-border-dark-grey">
-                        Qty
-                      </th>
-                      <th className="px-3 py-2 border border-border-dark-grey">
-                        Unit
-                      </th>
-                      <th className="px-3 py-2 border border-border-dark-grey">
-                        Action
-                      </th>
+                      <th className="px-3 py-2 border border-border-dark-grey">#</th>
+                      <th className="px-3 py-2 border border-border-dark-grey">Material</th>
+                      <th className="px-3 py-2 border border-border-dark-grey">Qty</th>
+                      <th className="px-3 py-2 border border-border-dark-grey">Unit</th>
+                      <th className="px-3 py-2 border border-border-dark-grey">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {materials.map((mat, i) => (
                       <tr key={i}>
-                        <td className="px-3 py-2 border border-border-dark-grey">
-                          {i + 1}
-                        </td>
-                        <td className="px-3 py-2 border border-border-dark-grey">
-                          {mat.materialName}
-                        </td>
-                        <td className="px-3 py-2 border border-border-dark-grey">
-                          {mat.quantity}
-                        </td>
-                        <td className="px-3 py-2 border border-border-dark-grey">
-                          {mat.unit}
-                        </td>
+                        <td className="px-3 py-2 border border-border-dark-grey">{i + 1}</td>
+                        <td className="px-3 py-2 border border-border-dark-grey">{mat.materialName}</td>
+                        <td className="px-3 py-2 border border-border-dark-grey">{mat.quantity}</td>
+                        <td className="px-3 py-2 border border-border-dark-grey">{mat.unit}</td>
                         <td className="px-3 py-2 border border-border-dark-grey">
                           <button
                             type="button"
@@ -286,7 +321,7 @@ const CreateRequest = ({ onclose, onSuccess }) => {
             </section>
           </div>
 
-          {/* Submit / Cancel Buttons */}
+          {/* Buttons */}
           <div className="flex justify-end mt-8 space-x-3">
             <button
               type="button"

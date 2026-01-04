@@ -5,12 +5,14 @@ import axios from "axios";
 import { API } from "../../../constant";
 
 const initialMaterial = { materialName: "", quantity: "", unit: "" };
+const initialVendor = { vendorId: "", vendorName: "" };
 
 const CreateEnquiry = ({ onclose, onSuccess }) => {
-  const [entryType, setEntryType] = useState(""); // manual / existing
+  const [entryType, setEntryType] = useState(""); 
 
   const [projects, setProjects] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [projectVendors, setProjectVendors] = useState([]); 
 
   // Selected values
   const [projectId, setProjectId] = useState("");
@@ -26,8 +28,8 @@ const CreateEnquiry = ({ onclose, onSuccess }) => {
   const [requiredByDate, setRequiredByDate] = useState("");
 
   const [materials, setMaterials] = useState([{ ...initialMaterial }]);
+  const [selectedVendors, setSelectedVendors] = useState([{ ...initialVendor }]);
 
-  // 🔥 READONLY FLAG
   const isReadOnly = entryType === "existing" && requestId;
 
   /** LOAD PROJECTS */
@@ -44,6 +46,18 @@ const CreateEnquiry = ({ onclose, onSuccess }) => {
     }
   };
 
+  /** FETCH VENDORS FOR PROJECT (FIXED) */
+  const loadVendors = async (id) => {
+    try {
+      const res = await axios.get(`${API}/permittedvendor/getvendor/${id}`);
+      // FIX: Access the nested 'permitted_vendors' array
+      setProjectVendors(res.data?.data?.permitted_vendors || []);
+    } catch (err) {
+      console.error("Failed to load vendors", err);
+      setProjectVendors([]);
+    }
+  };
+
   /** RESET FORM FIELDS */
   const resetForm = () => {
     setTitle("");
@@ -53,6 +67,7 @@ const CreateEnquiry = ({ onclose, onSuccess }) => {
     setSiteIncharge("");
     setRequiredByDate("");
     setMaterials([{ ...initialMaterial }]);
+    setSelectedVendors([{ ...initialVendor }]);
   };
 
   /** PROJECT SELECTION */
@@ -61,23 +76,26 @@ const CreateEnquiry = ({ onclose, onSuccess }) => {
     setRequestId("");
     setRequests([]);
     resetForm();
+    
+    if (id) {
+        loadVendors(id);
+    }
 
-if (entryType !== "existing") return;
+    if (entryType !== "existing") return;
 
-try {
-  const res = await axios.get(
-    `${API}/purchaseorderrequest/api/getbyId/${id}`
-  );
+    try {
+      const res = await axios.get(
+        `${API}/purchaseorderrequest/api/getbyId/${id}`
+      );
 
-  // Filter requests with status "Request Raised"
-  const pendingRequests = (res.data?.data || []).filter(
-    (r) => r.status === "Request Raised"
-  );
+      const pendingRequests = (res.data?.data || []).filter(
+        (r) => r.status === "Request Raised"
+      );
 
-  setRequests(pendingRequests);
-} catch {
-  toast.error("No Purchase Requests Found");
-}
+      setRequests(pendingRequests);
+    } catch {
+      toast.error("No Purchase Requests Found");
+    }
   };
 
   /** REQUEST AUTO FILL */
@@ -118,9 +136,37 @@ try {
     setMaterials(updated);
   };
 
+  /** VENDOR ROW HANDLERS */
+  const handleAddVendor = () => 
+    setSelectedVendors([...selectedVendors, { ...initialVendor }]);
+
+  const handleDeleteVendor = (index) => {
+    if (selectedVendors.length === 1) return;
+    setSelectedVendors(selectedVendors.filter((_, i) => i !== index));
+  };
+
+  const handleVendorChange = (i, field, value) => {
+    const updated = [...selectedVendors];
+    updated[i][field] = value;
+
+    // Auto-fill Logic
+    if (field === "vendorId") {
+        const vendor = projectVendors.find(v => v.vendor_id === value);
+        if (vendor) updated[i].vendorName = vendor.vendor_name;
+    } else if (field === "vendorName") {
+        const vendor = projectVendors.find(v => v.vendor_name === value);
+        if (vendor) updated[i].vendorId = vendor.vendor_id;
+    }
+
+    setSelectedVendors(updated);
+  };
+
   /** SUBMIT */
   const handleSubmit = async () => {
     if (!projectId) return toast.warning("Project is required");
+
+    const validVendors = selectedVendors.filter(v => v.vendorId && v.vendorName);
+    if (validVendors.length === 0) return toast.warning("At least one valid vendor is required");
 
     const payload = {
       projectId,
@@ -134,6 +180,10 @@ try {
       requiredByDate,
       materialsRequired: materials,
       status: "Quotation Requested",
+      permittedVendor: validVendors.map(v => ({
+          vendorId: v.vendorId,
+          vendorName: v.vendorName
+      }))
     };
 
     try {
@@ -143,14 +193,17 @@ try {
 
         await axios.put(
           `${API}/purchaseorderrequest/api/updateStatus/${requestId}`,
-          { status: "Quotation Requested" }
+          { 
+              status: "Quotation Requested",
+              permittedVendor: payload.permittedVendor 
+          }
         );
       } else {
         await axios.post(`${API}/purchaseorderrequest/api/create`, payload);
       }
 
-      toast.success("Saved successfully");
-      onSuccess && onSuccess();
+      toast.success("Enquiry Sent Successfully!");
+      if (onSuccess) onSuccess();
       onclose();
     } catch {
       toast.error("Failed to save");
@@ -158,255 +211,339 @@ try {
   };
 
   return (
-    <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-layout-dark w-full max-w-3xl rounded-lg shadow-lg relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-gray-900 w-full max-w-4xl rounded-xl shadow-2xl relative max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
+        
         {/* HEADER */}
-        <div className="flex justify-between items-center px-6 py-4">
-          <p className="text-2xl text-white font-semibold">Create Enquiry</p>
+        <div className="flex justify-between items-center px-6 py-5 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+              Create Enquiry
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Send enquiry for materials to vendors
+            </p>
+          </div>
           <button
-            className="text-gray-400 hover:text-red-500"
             onClick={onclose}
+            className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors"
           >
-            <IoClose size={26} />
+            <IoClose size={24} />
           </button>
         </div>
 
-        <div className="p-6">
-          {/* ENTRY TYPE */}
-          <label className="text-white text-sm">Entry Type</label>
-          <select
-            value={entryType}
-            onChange={(e) => {
-              setEntryType(e.target.value);
-              setProjectId("");
-              setRequestId("");
-              resetForm();
-              setRequests([]);
-            }}
-            className="w-full border bg-layout-dark border-border-dark-grey rounded px-3 py-2 mt-1 text-white mb-4"
-          >
-            <option value="">Select</option>
-            <option value="manual">Manual Entry</option>
-            <option value="existing">Existing Request</option>
-          </select>
-
-          {/* PROJECT */}
-          <label className="text-white text-sm">Project</label>
-          <select
-            value={projectId}
-            onChange={(e) => handleProjectSelect(e.target.value)}
-            disabled={isReadOnly}
-            className="w-full border bg-layout-dark border-border-dark-grey rounded px-3 py-2 mt-1 text-white mb-4"
-          >
-            <option value="">Select Project</option>
-            {projects.map((p, i) => (
-              <option key={i} value={p.tender_id}>
-                {p.tender_id}
-              </option>
-            ))}
-          </select>
-
-          {/* REQUEST */}
-          {entryType === "existing" && projectId && (
-            <>
-              <label className="text-white text-sm">Request ID</label>
+        <div className="p-6 space-y-6">
+          
+          {/* TOP CONTROLS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Entry Type</label>
               <select
-                value={requestId}
-                onChange={(e) => handleRequestSelect(e.target.value)}
-                className="w-full border bg-layout-dark border-border-dark-grey rounded px-3 py-2 mt-1 text-white mb-4"
+                value={entryType}
+                onChange={(e) => {
+                  setEntryType(e.target.value);
+                  setProjectId("");
+                  setRequestId("");
+                  resetForm();
+                  setRequests([]);
+                }}
+                className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               >
-                <option value="">Select Request</option>
-                {requests.map((r, i) => (
-                  <option key={i} value={r.requestId}>
-                    {r.requestId}
+                <option value="" className="dark:bg-gray-800">Select</option>
+                <option value="manual" className="dark:bg-gray-800">Manual Entry</option>
+                <option value="existing" className="dark:bg-gray-800">Existing Request</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Project</label>
+              <select
+                value={projectId}
+                onChange={(e) => handleProjectSelect(e.target.value)}
+                disabled={isReadOnly}
+                className={`w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none ${isReadOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+              >
+                <option value="" className="dark:bg-gray-800">Select Project</option>
+                {projects.map((p, i) => (
+                  <option key={i} value={p.tender_id} className="dark:bg-gray-800">
+                    {p.tender_id}
                   </option>
                 ))}
               </select>
-            </>
-          )}
-
-          {/* TITLE */}
-          <label className="text-white text-sm">Title</label>
-          <input
-            className="w-full border border-border-dark-grey rounded px-3 py-2 mt-1 text-white mb-3"
-            value={title}
-            readOnly={isReadOnly}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-
-          {/* DESCRIPTION */}
-          <label className="text-white text-sm">Description</label>
-          <textarea
-            className="w-full border border-border-dark-grey rounded px-3 py-2 mt-1 text-white mb-3"
-            value={description}
-            readOnly={isReadOnly}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-
-          {/* SITE DETAILS */}
-          <h2 className="text-lg font-semibold text-white mt-4 mb-2">
-            Site Details
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-            <div>
-              <label className="text-white text-sm">Site Name</label>
-              <input
-                value={siteName}
-                readOnly={isReadOnly}
-                onChange={(e) => setSiteName(e.target.value)}
-                className="w-full border border-border-dark-grey rounded px-3 py-2 mt-1 text-white"
-              />
             </div>
 
-            <div>
-              <label className="text-white text-sm">Location</label>
-              <input
-                value={siteLocation}
-                readOnly={isReadOnly}
-                onChange={(e) => setSiteLocation(e.target.value)}
-                className="w-full border border-border-dark-grey rounded px-3 py-2 mt-1 text-white"
-              />
+            {/* Conditional Request ID */}
+            {entryType === "existing" && projectId && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Request ID</label>
+                <select
+                  value={requestId}
+                  onChange={(e) => handleRequestSelect(e.target.value)}
+                  className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="" className="dark:bg-gray-800">Select Request</option>
+                  {requests.map((r, i) => (
+                    <option key={i} value={r.requestId} className="dark:bg-gray-800">
+                      {r.requestId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <hr className="border-gray-200 dark:border-gray-800" />
+
+          {/* SELECT VENDORS SECTION */}
+          <div>
+            <div className="flex justify-between items-center mb-3">
+                <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                    <span className="w-1 h-4 bg-green-500 rounded-full"></span> Select Vendors
+                </h3>
+                <button onClick={handleAddVendor} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                    + Add Vendor
+                </button>
             </div>
 
+            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 mb-6">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold">
+                        <tr>
+                            <th className="px-4 py-3 w-12 text-center">#</th>
+                            <th className="px-4 py-3">Vendor ID</th>
+                            <th className="px-4 py-3">Vendor Name</th>
+                            <th className="px-4 py-3 w-20 text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                        {selectedVendors.map((row, i) => (
+                            <tr key={i} className="bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                <td className="px-4 py-3 text-center text-gray-400">{i + 1}</td>
+                                
+                                {/* Vendor ID Select */}
+                                <td className="px-4 py-3">
+                                    <select
+                                        value={row.vendorId}
+                                        onChange={(e) => handleVendorChange(i, "vendorId", e.target.value)}
+                                        className="w-full bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 outline-none text-gray-800 dark:text-gray-200 py-1 transition-colors"
+                                    >
+                                        <option value="" className="dark:bg-gray-800">Select ID</option>
+                                        {/* SAFE CHECK: Check if projectVendors is array */}
+                                        {Array.isArray(projectVendors) && projectVendors.map((v, idx) => (
+                                            <option key={v.vendor_id || idx} value={v.vendor_id} className="dark:bg-gray-800">{v.vendor_id}</option>
+                                        ))}
+                                    </select>
+                                </td>
+
+                                {/* Vendor Name Select */}
+                                <td className="px-4 py-3">
+                                    <select
+                                        value={row.vendorName}
+                                        onChange={(e) => handleVendorChange(i, "vendorName", e.target.value)}
+                                        className="w-full bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 outline-none text-gray-800 dark:text-gray-200 py-1 transition-colors"
+                                    >
+                                        <option value="" className="dark:bg-gray-800">Select Name</option>
+                                        {/* SAFE CHECK: Check if projectVendors is array */}
+                                        {Array.isArray(projectVendors) && projectVendors.map((v, idx) => (
+                                            <option key={v.vendor_id || idx} value={v.vendor_name} className="dark:bg-gray-800">{v.vendor_name}</option>
+                                        ))}
+                                    </select>
+                                </td>
+
+                                <td className="px-4 py-3 text-center">
+                                    {selectedVendors.length > 1 && (
+                                        <button onClick={() => handleDeleteVendor(i)} className="text-gray-400 hover:text-red-500 transition-colors">
+                                            <IoClose size={18} />
+                                        </button>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+          </div>
+
+          <hr className="border-gray-200 dark:border-gray-800" />
+
+          <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="text-white text-sm">Site Incharge</label>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Title</label>
               <input
-                value={siteIncharge}
+                value={title}
                 readOnly={isReadOnly}
-                onChange={(e) => setSiteIncharge(e.target.value)}
-                className="w-full border border-border-dark-grey rounded px-3 py-2 mt-1 text-white"
+                onChange={(e) => setTitle(e.target.value)}
+                className={`w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none ${isReadOnly ? 'cursor-not-allowed bg-gray-50 dark:bg-gray-800/50' : ''}`}
               />
             </div>
-
             <div>
-              <label className="text-white text-sm">Required By Date</label>
-              <input
-                type="date"
-                value={requiredByDate}
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Description</label>
+              <textarea
+                value={description}
                 readOnly={isReadOnly}
-                onChange={(e) => setRequiredByDate(e.target.value)}
-                className="w-full border border-border-dark-grey rounded px-3 py-2 mt-1 text-white"
+                onChange={(e) => setDescription(e.target.value)}
+                className={`w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none resize-none ${isReadOnly ? 'cursor-not-allowed bg-gray-50 dark:bg-gray-800/50' : ''}`}
+                rows={2}
               />
             </div>
           </div>
 
-          {/* MATERIALS */}
-          <h2 className="text-lg font-semibold text-white mb-2">
-            Materials Required
-          </h2>
+          {/* SITE DETAILS SECTION */}
+          <div>
+            <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+              <span className="w-1 h-4 bg-blue-500 rounded-full"></span> Site Details
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Site Name</label>
+                <input
+                  value={siteName}
+                  readOnly={isReadOnly}
+                  onChange={(e) => setSiteName(e.target.value)}
+                  className={`w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none ${isReadOnly ? 'cursor-not-allowed bg-gray-50 dark:bg-gray-800/50' : ''}`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Location</label>
+                <input
+                  value={siteLocation}
+                  readOnly={isReadOnly}
+                  onChange={(e) => setSiteLocation(e.target.value)}
+                  className={`w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none ${isReadOnly ? 'cursor-not-allowed bg-gray-50 dark:bg-gray-800/50' : ''}`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Site Incharge</label>
+                <input
+                  value={siteIncharge}
+                  readOnly={isReadOnly}
+                  onChange={(e) => setSiteIncharge(e.target.value)}
+                  className={`w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none ${isReadOnly ? 'cursor-not-allowed bg-gray-50 dark:bg-gray-800/50' : ''}`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Required By</label>
+                <input
+                  type="date"
+                  value={requiredByDate}
+                  readOnly={isReadOnly}
+                  onChange={(e) => setRequiredByDate(e.target.value)}
+                  className={`w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none ${isReadOnly ? 'cursor-not-allowed bg-gray-50 dark:bg-gray-800/50' : ''}`}
+                />
+              </div>
+            </div>
+          </div>
 
-          {/* HIDE ADD ROW IN EXISTING */}
-          {!isReadOnly && (
-            <button
-              className="bg-darkest-blue text-white px-6 py-2 rounded mb-4"
-              onClick={handleAddRow}
-            >
-              + Add Row
-            </button>
-          )}
+          <hr className="border-gray-200 dark:border-gray-800" />
 
-          {isReadOnly ? (
-            // Display as plain table for existing request
-            <table className="w-full text-white text-sm border border-border-dark-grey">
-              <thead>
-                <tr className="bg-[#1f1f1f]">
-                  <th className="px-3 py-2 border">#</th>
-                  <th className="px-3 py-2 border">Material</th>
-                  <th className="px-3 py-2 border">Qty</th>
-                  <th className="px-3 py-2 border">Unit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {materials.map((row, i) => (
-                  <tr key={i}>
-                    <td className="px-3 py-2 border">{i + 1}</td>
-                    <td className="px-3 py-2 border">{row.materialName}</td>
-                    <td className="px-3 py-2 border">{row.quantity}</td>
-                    <td className="px-3 py-2 border">{row.unit}</td>
+          {/* MATERIALS TABLE */}
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <span className="w-1 h-4 bg-purple-500 rounded-full"></span> Materials Required
+              </h3>
+              
+              {!isReadOnly && (
+                <button
+                  onClick={handleAddRow}
+                  className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                >
+                  + Add Item
+                </button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold">
+                  <tr>
+                    <th className="px-4 py-3 w-12 text-center">#</th>
+                    <th className="px-4 py-3 min-w-[200px]">Material Name</th>
+                    <th className="px-4 py-3 w-32">Qty</th>
+                    <th className="px-4 py-3 w-24">Unit</th>
+                    {!isReadOnly && <th className="px-4 py-3 w-20 text-center">Action</th>}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            // Editable table for manual entry
-            <table className="w-full text-white text-sm border border-border-dark-grey">
-              <thead>
-                <tr className="bg-[#1f1f1f]">
-                  <th className="px-3 py-2 border">#</th>
-                  <th className="px-3 py-2 border">Material</th>
-                  <th className="px-3 py-2 border">Qty</th>
-                  <th className="px-3 py-2 border">Unit</th>
-                  <th className="px-3 py-2 border">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {materials.map((row, i) => (
-                  <tr key={i}>
-                    <td className="px-3 py-2 border">{i + 1}</td>
-                    <td className="px-3 py-2 border">
-                      <input
-                        value={row.materialName}
-                        onChange={(e) =>
-                          handleMaterialChange(
-                            i,
-                            "materialName",
-                            e.target.value
-                          )
-                        }
-                        className="bg-transparent w-full outline-none text-white"
-                      />
-                    </td>
-                    <td className="px-3 py-2 border">
-                      <input
-                        value={row.quantity}
-                        onChange={(e) =>
-                          handleMaterialChange(i, "quantity", e.target.value)
-                        }
-                        className="bg-transparent w-full outline-none text-white"
-                      />
-                    </td>
-                    <td className="px-3 py-2 border">
-                      <input
-                        value={row.unit}
-                        onChange={(e) =>
-                          handleMaterialChange(i, "unit", e.target.value)
-                        }
-                        className="bg-transparent w-full outline-none text-white"
-                      />
-                    </td>
-                    <td className="px-3 py-2 border">
-                      {materials.length > 1 && (
-                        <button
-                          className="text-red-500 hover:underline"
-                          onClick={() => handleDeleteRow(i)}
-                        >
-                          Delete
-                        </button>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                  {materials.map((row, i) => (
+                    <tr key={i} className="bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <td className="px-4 py-3 text-center text-gray-400">{i + 1}</td>
+                      
+                      <td className="px-4 py-3">
+                        {isReadOnly ? (
+                          <span className="text-gray-800 dark:text-gray-200">{row.materialName}</span>
+                        ) : (
+                          <input
+                            value={row.materialName}
+                            onChange={(e) => handleMaterialChange(i, "materialName", e.target.value)}
+                            className="w-full bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 outline-none text-gray-800 dark:text-gray-200 py-1 transition-colors"
+                            placeholder="Enter material name"
+                          />
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        {isReadOnly ? (
+                          <span className="text-gray-800 dark:text-gray-200">{row.quantity}</span>
+                        ) : (
+                          <input
+                            value={row.quantity}
+                            onChange={(e) => handleMaterialChange(i, "quantity", e.target.value)}
+                            className="w-full bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 outline-none text-gray-800 dark:text-gray-200 py-1 transition-colors"
+                            placeholder="0.00"
+                          />
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        {isReadOnly ? (
+                          <span className="text-gray-800 dark:text-gray-200">{row.unit}</span>
+                        ) : (
+                          <input
+                            value={row.unit}
+                            onChange={(e) => handleMaterialChange(i, "unit", e.target.value)}
+                            className="w-full bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 outline-none text-gray-800 dark:text-gray-200 py-1 transition-colors"
+                            placeholder="Unit"
+                          />
+                        )}
+                      </td>
+
+                      {!isReadOnly && (
+                        <td className="px-4 py-3 text-center">
+                          {materials.length > 1 && (
+                            <button
+                              onClick={() => handleDeleteRow(i)}
+                              className="text-gray-400 hover:text-red-500 transition-colors"
+                              title="Remove Row"
+                            >
+                              <IoClose size={18} />
+                            </button>
+                          )}
+                        </td>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-          {/* BUTTONS */}
-          <div className="flex justify-end gap-4 mt-8">
+          {/* FOOTER ACTIONS */}
+          <div className="flex justify-end gap-3 pt-4">
             <button
-              className="px-6 py-3 border border-gray-500 text-gray-300 rounded"
               onClick={onclose}
+              className="px-5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium transition-all"
             >
               Cancel
             </button>
-
             <button
-              className="px-6 py-3 bg-[#142e56] text-white rounded"
               onClick={handleSubmit}
+              className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium shadow-md transition-all"
             >
               Save Enquiry
             </button>
           </div>
+
         </div>
       </div>
     </div>

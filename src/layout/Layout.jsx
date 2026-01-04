@@ -76,7 +76,7 @@ const LayOut = () => {
       icon: <RiDashboardLine size={23} />,
       to: "/dashboard",
     },
-      {
+    {
       title: "Tender",
       icon: <TbFileDelta size={23} />,
       to: "/tender/customers",
@@ -96,7 +96,7 @@ const LayOut = () => {
         //   icon: <LiaClipboardListSolid size={23} />,
         //   to: "/tender/workorders",
         // },
-             {
+        {
           title: "DLP",
           icon: <TbDatabaseDollar size={23} />,
           to: "/tender/dlp",
@@ -116,14 +116,14 @@ const LayOut = () => {
           icon: <TbShieldCheckered size={23} />,
           to: "/tender/projectpenalty",
         },
-   
+
       ],
     },
-   {
+    {
       title: "Projects",
       icon: <HiOutlineClipboardList size={23} />,
       to: "/projects",
-          nested: [
+      nested: [
         {
           title: "BOQ Cost",
           icon: <RiDiscountPercentLine size={23} />,
@@ -179,7 +179,7 @@ const LayOut = () => {
           icon: <TbAssembly size={23} />,
           to: "/projects/projectsassets",
         },
-     
+
       ],
     },
     {
@@ -244,12 +244,12 @@ const LayOut = () => {
           icon: <ScrollText size={23} />,
           to: "/site/boqsite",
         },
-         {
+        {
           title: "Detailed Estimate ",
           icon: <AiOutlineFileAdd size={23} />,
           to: "/site/detailestimatesite",
         },
-         {
+        {
           title: "Site Drawing",
           icon: <BiShapeSquare size={23} />,
           to: "/site/sitedrawing",
@@ -259,59 +259,60 @@ const LayOut = () => {
         //   icon: <TbCalendarStats size={23} />,
         //   //to: "/site/sitedrawing",
         // },
-         {
+        {
           title: "Work Done",
           icon: <TbReceipt2 size={23} />,
           to: "/site/workDoneSite",
         },
-         {
+        {
           title: "Daily Labour Report",
           icon: <TbReportAnalytics size={23} />,
           to: "/site/dialylabourreport",
         },
-         {
-          title: "Material Received",
-          icon: <BsBoxSeam size={23} />,
-          to: "/site/materialrecievedsite",
-        },
-         {
-          title: "Material Issued",
-          icon: <RiBox3Line size={23} />,
-          to: "/site/materialissuedsite",
-        },
-         {
-          title: "Stock Register",
-          icon: <CiBoxList size={23} />,
-          to: "/site/stockregistersite",
-        },
-         {
+        {
           title: "Purchase Request",
           icon: <TbFolderQuestion size={23} />,
           to: "/site/purchaserequestsite",
         },
         {
+          title: "Material Received",
+          icon: <BsBoxSeam size={23} />,
+          to: "/site/materialrecievedsite",
+        },
+        {
+          title: "Material Issued",
+          icon: <RiBox3Line size={23} />,
+          to: "/site/materialissuedsite",
+        },
+        {
+          title: "Stock Register",
+          icon: <CiBoxList size={23} />,
+          to: "/site/stockregistersite",
+        },
+
+        {
           title: "Site Assets",
-          icon: <TbAssembly size={23} />,  
+          icon: <TbAssembly size={23} />,
           to: "/site/siteassets",
         },
         {
           title: "Weekly Billing",
-          icon: <TbReceipt2 size={23} />,  
+          icon: <TbReceipt2 size={23} />,
           to: "/site/weeklybillingsite",
         },
         {
           title: "Reconciliation",
-          icon: <TbFileOrientation size={23} />,  
+          icon: <TbFileOrientation size={23} />,
           to: "/site/reconciliationsite",
         },
-           {
+        {
           title: "Planned vs Achieved",
-          icon: <Quote size={23} />,  
+          icon: <Quote size={23} />,
           to: "/site/plannedvsachived",
         },
-           {
+        {
           title: "Machinery Entry",
-          icon: <LuGlassWater size={23} />,  
+          icon: <LuGlassWater size={23} />,
           to: "/site/machineryentry",
         },
 
@@ -346,14 +347,14 @@ const LayOut = () => {
           title: "Contract & NMR",
           icon: <TbContract size={23} />,
           to: "/hr/contractnmr",
-        },{
+        }, {
           title: "NMR",
-          icon: <TbListSearch  size={23} />,
+          icon: <TbListSearch size={23} />,
           to: "/hr/nmr",
         },
         {
           title: "NMR Attendance",
-          icon: <TfiLayoutListThumb  size={23} />,
+          icon: <TfiLayoutListThumb size={23} />,
           to: "/hr/NMRattendance",
         },
       ],
@@ -413,7 +414,7 @@ const LayOut = () => {
           icon: <MdLocalAtm size={23} />,
           to: "/finance/cashentry",
         },
-          {
+        {
           title: "Ledger Entry",
           icon: <MdLocalAtm size={23} />,
           to: "/finance/ledgerentry",
@@ -422,7 +423,7 @@ const LayOut = () => {
           title: "Supplier Outstanding",
           icon: <Banknote size={23} />,
           to: "/finance/supplieroutstanding",
-        },  {
+        }, {
           title: "Overall Expenses",
           icon: <FaBars size={23} />,
           to: "/finance/overallexpenses",
@@ -446,7 +447,7 @@ const LayOut = () => {
         },
         {
           title: "Client Billing",
-          icon: <RiBillLine  size={23} />,
+          icon: <RiBillLine size={23} />,
           to: "/reports/clientbilling",
         },
         {
@@ -568,11 +569,10 @@ const LayOut = () => {
               <React.Fragment key={index}>
                 <NavLink to={menu.to}>
                   <li
-                    className={`w-[80px] text-sm font-extralight flex flex-col items-center gap-1 px-3 py-3 my-4 border dark:border-border-dark-grey border-border-sidebar rounded-xl ${
-                      isMenuActive(menu)
+                    className={`w-[80px] text-sm font-extralight flex flex-col items-center gap-1 px-3 py-3 my-4 border dark:border-border-dark-grey border-border-sidebar rounded-xl ${isMenuActive(menu)
                         ? " text-white  bg-darkest-blue "
                         : " dark:text-white text-darkest-blue  "
-                    }`}
+                      }`}
                   >
                     <span>{menu.icon}</span>
                     <p>{menu.title}</p>
@@ -613,11 +613,10 @@ const LayOut = () => {
                     <li key={index} className="mb-2">
                       <NavLink to={item.to}>
                         <div
-                          className={`w-full   flex  items-center gap-2 py-3 px-3 cursor-pointer ${
-                            location.pathname.startsWith(item.to)
+                          className={`w-full   flex  items-center gap-2 py-3 px-3 cursor-pointer ${location.pathname.startsWith(item.to)
                               ? "dark:bg-overall_bg-dark bg-select-subbar dark:text-white  text-darkest-blue border-r-4 border-r-darkest-blue "
                               : "dark:text-white text-darkest-blue"
-                          }`}
+                            }`}
                         >
                           <span>{item.icon}</span>
                           <p>{item.title}</p>

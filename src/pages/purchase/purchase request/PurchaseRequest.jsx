@@ -14,8 +14,9 @@ const PurchaseRequest = () => {
     { label: "Request ID", key: "requestId" },
     { label: "Date", key: "requestDate" },
     { label: "Project", key: "projectName" },
-    { label: "Date of Requirements", key: "requiredOn" },
+    { label: "Date of Requirements", key: "requiredByDate" },
     { label: "Requested by", key: "siteIncharge" },
+    { label: "Status", key: "status" },
   ];
 
   const fetchRequests = async () => {
@@ -23,7 +24,7 @@ const PurchaseRequest = () => {
       const tenderId = localStorage.getItem("tenderId");
 
       const res = await axios.get(
-        `${API}/purchaseorderrequest/api/getbyId/${tenderId}`
+        `${API}/purchaseorderrequest/api/getbyIdNewRequest/${tenderId}`
       );
 
 
@@ -33,12 +34,13 @@ const PurchaseRequest = () => {
           ? new Date(item.requestDate).toLocaleDateString("en-GB")
           : "-",
 
-        projectName: item.projectId,
-        requiredOn: item.requiredByDate
+        projectName: item.projectId,    
+        requiredByDate: item.requiredByDate
           ? new Date(item.requiredByDate).toLocaleDateString("en-GB")
           : "-",
 
         siteIncharge: item.siteDetails?.siteIncharge || "N/A",
+        status: item.status,
       }));
 
       setData(formatted || []);

@@ -117,7 +117,7 @@ const PurchaseRequestSite = () => {
                   <td>{item.requiredOn}</td>
                   <td className="font-medium text-primary">{item.status}</td>
 
-                  <td className="pr-2 flex justify-center">
+                  <td className="pr-2 pt-1 flex justify-center">
                     <button
                       onClick={() => toggleRow(index)}
                       className="cursor-pointer bg-blue-200 text-blue-700 rounded p-1.5"
@@ -172,7 +172,7 @@ const PurchaseRequestSite = () => {
       </div>
 
       {openAddModal && (
-        <AddPurchaseRequestSite onclose={() => setOpenAddModal(false)} />
+        <AddPurchaseRequestSite onclose={() => setOpenAddModal(false)} onSuccess={fetchPurchaseRequests}/>
       )}
     </div>
   );

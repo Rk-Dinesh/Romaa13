@@ -533,3 +533,38 @@ const ProjectSchedule = () => {
 };
 
 export default ProjectSchedule;
+
+
+
+
+  const navigate = useNavigate();
+    const location = useLocation();
+  
+  // Safe State Access
+  const passedItem = location.state?.item || {};
+  const requestIdParam = passedItem.requestId;
+  const projectIdParam = passedItem.projectName; // Assuming 'projectName' holds the ID based on context
+
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch Data
+  useEffect(() => {
+    const fetchRequest = async () => {
+      if (!requestIdParam || !projectIdParam) return;
+      
+      try {
+        const res = await axios.get(
+          `${API}/purchaseorderrequest/api/getQuotationRequested/${projectIdParam}/${requestIdParam}`
+        );
+        setData(res.data?.data);
+      } catch (err) {
+        console.error("Error fetching request:", err);
+        toast.error("Failed to load request details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRequest();
+  }, [requestIdParam, projectIdParam]);
