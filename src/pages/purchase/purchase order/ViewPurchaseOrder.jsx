@@ -183,7 +183,8 @@ const ViewPurchaseOrder = () => {
           </div>
           
           <div className="flex gap-2">
-            <Button
+            {data.status !== "Completed" && (
+             <Button
             button_name={isPOIssued ? "PO Passed" : (passingLoading ? "Processing..." : "Pass PO")}
               button_icon={<Check size={18} />}
               onClick={handlePassPO}
@@ -193,6 +194,7 @@ const ViewPurchaseOrder = () => {
               paddingY="py-2"
               disabled={isPOIssued || passingLoading}
             />
+            )}
             <Button
               button_name="View Invoice"
               button_icon={<Printer size={18} />}

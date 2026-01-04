@@ -568,3 +568,258 @@ export default ProjectSchedule;
 
     fetchRequest();
   }, [requestIdParam, projectIdParam]);
+
+
+
+
+  Some Complex Design but i will explain it to you
+
+  in AddMaterial Component
+
+  i want to add materials in multiple rows as per Po quantity, 
+
+  on form if i choose requestId auto the materials found 
+
+  http://localhost:5000/purchaseorderrequest/api/getbyIdMaterialReceived/TND021 
+
+{
+    "data": [
+        {
+            "_id": "695a3f27f1eb64a1960e0c3c",
+            "requestId": "POR011",
+            "projectId": "TND021",
+            "title": "Covering",
+            "description": "Details of covering",
+            "materialsRequired": [
+                {
+                    "materialName": "TMT Steel",
+                    "quantity": 1,
+                    "unit": "MT",
+                    "_id": "695a3f27f1eb64a1960e0c3d"
+                },
+                {
+                    "materialName": "Cement",
+                    "quantity": 123,
+                    "unit": "Bags",
+                    "_id": "695a3f27f1eb64a1960e0c3e"
+                },
+                {
+                    "materialName": "Msand",
+                    "quantity": 2,
+                    "unit": "Unit",
+                    "_id": "695a3f27f1eb64a1960e0c3f"
+                }
+            ]
+        },
+        {
+            "_id": "695a768b7530a541ca19e204",
+            "requestId": "POR015",
+            "projectId": "TND021",
+            "title": "cement",
+            "description": "Just Required",
+            "materialsRequired": [
+                {
+                    "materialName": "River Sand",
+                    "quantity": 200,
+                    "unit": "Unit",
+                    "_id": "695a768b7530a541ca19e205"
+                }
+            ]
+        }
+    ]
+}
+
+        Schema 
+
+        import mongoose from "mongoose";
+
+// --- 1. RECEIVED HISTORY (Inward Ledger) ---
+// Tracks materials coming INTO the site (from Vendors/Purchase Requests)
+const InwardTransactionSchema = new mongoose.Schema({
+  date: { type: Date, default: Date.now },
+  quantity: { type: Number, required: true, default: 0 },
+  
+  // Traceability
+  purchase_request_ref: { type: String, default: "" }, // Links to PurchaseRequestModel.requestId
+  supplier_name: { type: String, default: "" },
+  invoice_challan_no: { type: String, default: "" }, // For physical proof
+  
+  received_by: { type: String, default: "" },
+  remarks: { type: String, default: "" }
+}, { _id: true }); // Enable ID for editing specific logs
+
+// --- 2. ISSUED HISTORY (Outward Ledger) ---
+// Tracks materials going OUT to the labor/work (Consumption)
+const OutwardTransactionSchema = new mongoose.Schema({
+  date: { type: Date, default: Date.now },
+  quantity: { type: Number, required: true, default: 0 },
+  
+  // utilization details
+  issued_to: { type: String, default: "" }, // Contractor or Foreman name
+  site_location: { type: String, default: "" }, // e.g., "Block A, 1st Floor"
+  work_description: { type: String, default: "" }, // e.g., "Plastering work"
+  
+  issued_by: { type: String, default: "" },
+  priority_level: { type: String, enum: ["Normal", "Urgent"], default: "Normal" }
+}, { _id: true });
+
+// --- 3. MAIN ITEM SCHEMA ---
+const MaterialItemSchema = new mongoose.Schema(
+  {
+    // ==========================================
+    // SECTION A: REAL QUANTITIES (Budget/Estimates)
+    // These fields are preserved EXACTLY as requested
+    // ==========================================
+    item_description: { type: String, default: "" },
+    category: { type: String, default: "" },
+    unit: { type: String, default: "" },
+    
+    // The breakdown of estimated quantities (e.g., per floor)
+    quantity: [{ type: Number, default: 0 }], 
+    
+    // The Total Budgeted Quantity (Sum of 'quantity' array)
+    total_item_quantity: { type: Number, default: 0 }, 
+    
+    unit_rate: { type: Number, default: 0 },
+    
+    // Budgeted Amount (total_item_quantity * unit_rate)
+    total_amount: { type: Number, default: 0 },
+
+    // ==========================================
+    // SECTION B: INVENTORY TRACKING (Dynamic)
+    // ==========================================
+    
+    // 1. Opening Stock (Carry over from previous project or initial existing stock)
+    opening_stock: { type: Number, default: 0 },
+
+    // 2. Transaction History Arrays
+    inward_history: [InwardTransactionSchema],
+    outward_history: [OutwardTransactionSchema],
+
+    // 3. Calculated Aggregates (Auto-calculated via Middleware)
+    total_received_qty: { type: Number, default: 0 }, // Sum of inward_history
+    total_issued_qty: { type: Number, default: 0 },   // Sum of outward_history
+    
+    // 4. The Golden Number: Actual Stock currently physically at site
+    // Formula: Opening Stock + Total Received - Total Issued
+    current_stock_on_hand: { type: Number, default: 0 },
+
+    // 5. Procurement Status
+    // Formula: Total Budgeted (total_item_quantity) - (Opening + Total Received)
+    pending_procurement_qty: { type: Number, default: 0 },
+  },
+  { _id: true } // We need IDs here to update specific items
+);
+
+const materialSchema = new mongoose.Schema(
+  {
+    tender_id: { type: String, default: "" },
+    items: [MaterialItemSchema],
+    created_by_user: { type: String, default: "ADMIN" },
+  },
+  { timestamps: true }
+);
+
+// --- MIDDLEWARE: AUTOMATIC CALCULATIONS ---
+// This ensures that whenever you save, the totals are mathematically correct.
+materialSchema.pre("save", function (next) {
+  if (this.items && this.items.length > 0) {
+    this.items.forEach((item) => {
+      
+      // 1. Ensure Total Item Quantity matches the quantity array (Budget)
+      if (item.quantity && item.quantity.length > 0) {
+        item.total_item_quantity = item.quantity.reduce((a, b) => a + b, 0);
+      }
+      
+      // 2. Calculate Total Amount (Budget)
+      item.total_amount = item.total_item_quantity * item.unit_rate;
+
+      // 3. Sum up Inwards (Received)
+      const receivedSum = item.inward_history.reduce((sum, record) => sum + record.quantity, 0);
+      item.total_received_qty = receivedSum;
+
+      // 4. Sum up Outwards (Issued)
+      const issuedSum = item.outward_history.reduce((sum, record) => sum + record.quantity, 0);
+      item.total_issued_qty = issuedSum;
+
+      // 5. Calculate Current Physical Stock
+      item.current_stock_on_hand = (item.opening_stock || 0) + receivedSum - issuedSum;
+
+      // 6. Calculate Pending Procurement (How much more we need to buy to meet budget)
+      // If we have bought more than budget, this stays 0 (or negative to show over-procurement)
+      item.pending_procurement_qty = item.total_item_quantity - ((item.opening_stock || 0) + receivedSum);
+    });
+  }
+  next();
+});
+
+const MaterialModel = mongoose.model("materials", materialSchema);
+
+export default MaterialModel;
+
+In form i want to PO quantity  and recieved quantity , and remaining quantity ,and store history of po and received quantity
+
+if the same requestId is choose the PO quantity should be the minus of received quantity and they are allowed to add form PO quantity that is caluclated from history
+
+Service api of MaterialItemSchema
+
+  static async addMaterialReceived(payload) {
+    const {
+      tender_id,
+      received_items, // Array: [{ item_id, received_quantity, supplier_name, invoice_no }]
+      purchase_request_id,
+      received_by
+    } = payload;
+
+    // 1. Fetch the Material Document
+    const materialDoc = await MaterialModel.findOne({ tender_id });
+    if (!materialDoc) throw new Error(`Tender ${tender_id} not found`);
+
+    // 2. Validate Purchase Request (Optional but recommended)
+    let prRef = "";
+    if (purchase_request_id) {
+      const prDoc = await PurchaseRequestModel.findOne({ requestId: purchase_request_id });
+      if (!prDoc) throw new Error(`Purchase Request ${purchase_request_id} not found`);
+      prRef = prDoc.requestId;
+    }
+
+    // 3. Process Each Received Item
+    const processedItems = [];
+
+    for (const entry of received_items) {
+      // Find item by ID (preferred) or Description (fallback)
+      const itemSubDoc = materialDoc.items.find(
+        (i) => i._id.toString() === entry.item_id || i.item_description === entry.item_description
+      );
+
+      if (!itemSubDoc) {
+        throw new Error(`Item '${entry.item_description || entry.item_id}' not found in Material List`);
+      }
+
+      // Create Inward Record
+      const inwardRecord = {
+        date: new Date(),
+        quantity: Number(entry.received_quantity),
+        purchase_request_ref: prRef,
+        supplier_name: entry.supplier_name || "",
+        invoice_challan_no: entry.invoice_no || "",
+        received_by: received_by || "Admin",
+        remarks: entry.remarks || "Received via GRN"
+      };
+
+      // Push to History
+      itemSubDoc.inward_history.push(inwardRecord);
+      processedItems.push(itemSubDoc.item_description);
+    }
+
+    // 4. Save (Middleware automatically updates total_received_qty & current_stock_on_hand)
+    await materialDoc.save();
+
+    return {
+      success: true,
+      message: `Stock updated for: ${processedItems.join(", ")}`,
+      tender_id
+    };
+  }
+
+  design the API for addMaterialReceived if changes needed and also design the component for addMaterialReceived

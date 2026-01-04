@@ -1,286 +1,385 @@
 import React, { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import axios from "axios";
 import Modal from "../../../components/Modal";
-import { InputField } from "../../../components/InputField";
 import { toast } from "react-toastify";
 import { API } from "../../../constant";
+import { Box } from "lucide-react"; // Added for empty state UI
 
+// --- Validation Schema ---
 const schema = yup.object().shape({
   requestId: yup.string().required("Request ID is required"),
-  item_description: yup.string().required("Material is required"),
-  ordered_date: yup.date().required("Ordered Date is required"),
-  received_quantity: yup
-    .number()
-    .typeError("Received Qty must be a number")
-    .required("Received Qty is required")
-    .min(0, "Cannot be negative"),
+  invoice_no: yup.string().required("Invoice/Challan No is required"),
+  received_items: yup.array().of(
+    yup.object().shape({
+      item_description: yup.string().required(),
+      received_quantity: yup
+        .number()
+        .transform((value) => (isNaN(value) ? 0 : value))
+        .min(0, "Min 0")
+        .test("max-qty", "Exceeds Balance", function (value) {
+          const { balance_quantity } = this.parent;
+          return value <= balance_quantity;
+        }),
+      ordered_date: yup.string().required("Date required"),
+    })
+  ),
 });
 
-const AddMaterial = ({ onclose,onSuccess }) => {
+const AddMaterial = ({ onclose, onSuccess }) => {
   const tenderId = localStorage.getItem("tenderId");
-  const [materials, setMaterials] = useState([]);
-  const [requests, setRequests] = useState([]);
-  const [selectedMaterial, setSelectedMaterial] = useState(null);
+
+  // State
+  const [purchaseRequests, setPurchaseRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const {
     register,
+    control,
     handleSubmit,
     setValue,
-    watch,
-    setError,
-    clearErrors,
     formState: { errors },
-    reset,
   } = useForm({
     resolver: yupResolver(schema),
+    defaultValues: {
+      requestId: "",
+      invoice_no: "",
+      site_name: "",
+      received_items: [],
+    },
   });
 
-  const received_quantity = watch("received_quantity") || 0;
+  const { fields, replace } = useFieldArray({
+    control,
+    name: "received_items",
+  });
 
-  
-
-  // Fetch materials
+  // 1. Fetch Initial Data
   useEffect(() => {
-    const fetchMaterials = async () => {
+    const fetchInitialData = async () => {
       try {
-        const res = await axios.get(`${API}/material/getall/${tenderId}`);
-        setMaterials(res.data.data || []);
+        const poRes = await axios.get(
+          `${API}/purchaseorderrequest/api/getbyIdMaterialReceived/${tenderId}`
+        );
+        setPurchaseRequests(poRes.data?.data || []);
       } catch (err) {
-        console.error("Error fetching materials:", err);
+        console.error(err);
+        toast.error("Failed to load Purchase Requests");
       }
     };
 
-    const fetchRequestId = async () => {
-    try {
-  const res = await axios.get(
-    `${API}/purchaseorderrequest/api/getbyId/${tenderId}`
-  );
-
-  // Filter requests with status "Request Raised"
-  const pendingRequests = (res.data?.data || []).filter(
-    (r) => r.status === "Request Raised"
-  );
-
-  setRequests(pendingRequests);
-} catch {
-  toast.error("No Purchase Requests Found");
-}
-  }
-    fetchMaterials();
-    fetchRequestId();
+    if (tenderId) fetchInitialData();
   }, [tenderId]);
 
-  const handleRequestSelect = (e) => {
-    const requestId = e.target.value;
-    setValue("requestId", requestId);
-  }
+  // 2. Handle Request ID Change
+  const handleRequestSelect = async (e) => {
+    const selectedId = e.target.value;
+    setValue("requestId", selectedId);
 
-  // Material selection
-  const handleMaterialSelect = (e) => {
-    const materialName = e.target.value;
-    const mat = materials.find((m) => m.item_description === materialName);
-    setSelectedMaterial(mat);
+    if (!selectedId) {
+      replace([]);
+      setValue("site_name", "");
+      return;
+    }
 
-    if (mat) {
-      setValue("unit", mat.unit);
-      setValue("quantity", mat.quantity);
-      setValue("total_amount", mat.total_amount);
-      setValue("received_quantity", "");
-      clearErrors("received_quantity");
-    } else {
-      setSelectedMaterial(null);
-      reset();
+    const selectedPO = purchaseRequests.find((r) => r.requestId === selectedId);
+    if (!selectedPO) return;
+
+    if (selectedPO.selectedVendor?.vendorName) {
+      setValue("site_name", selectedPO.selectedVendor.vendorName);
+    }
+
+    setLoading(true);
+
+    try {
+      const historyRes = await axios.get(
+        `${API}/material/getPOReceivedHistory/${tenderId}/${selectedId}`
+      );
+      
+      const inventoryHistory = historyRes.data?.data || [];
+
+      const formItems = selectedPO.materialsRequired.map((poItem) => {
+        const historyItem = inventoryHistory.find(
+          (h) => h.item_description === poItem.materialName
+        );
+
+        const previouslyReceived = historyItem ? historyItem.total_received_for_po : 0;
+        const poQty = poItem.quantity || 0;
+        const balance = Math.max(0, poQty - previouslyReceived);
+
+        return {
+          item_description: poItem.materialName,
+          unit: poItem.unit,
+          po_quantity: poQty,
+          prev_received: previouslyReceived,
+          balance_quantity: balance,
+          received_quantity: 0,
+          ordered_date: new Date().toISOString().split("T")[0],
+        };
+      });
+
+      replace(formItems);
+
+    } catch (err) {
+      console.error("Failed to fetch PO history", err);
+      toast.error("Could not fetch received history");
+      replace([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Validate and auto-update pending
-  useEffect(() => {
-    if (!selectedMaterial) return;
-
-    const totalQty = Number(selectedMaterial.quantity || 0);
-    const typedQty = Number(received_quantity || 0);
-    const alreadyReceived = Number(selectedMaterial.received_quantity || 0);
-    const newPending = Math.max(totalQty - (alreadyReceived + typedQty), 0);
-
-    // Live validation: prevent exceeding total quantity
-    if (typedQty + alreadyReceived > totalQty) {
-      setError("received_quantity", {
-        type: "manual",
-        message: `Cannot exceed PO Qty (${totalQty})`,
-      });
-    } else {
-      clearErrors("received_quantity");
-    }
-
-    // Update pending qty only if it changed
-    const currentPending = watch("pending_quantity");
-    if (currentPending !== newPending) {
-      setValue("pending_quantity", newPending);
-    }
-  }, [received_quantity, selectedMaterial]);
-
-  // Submit handler
+ // 3. Submit Handler
   const onSubmit = async (data) => {
+    setLoading(true);
     try {
+      // 1. Filter out valid items to submit
+      const itemsToSubmit = data.received_items.filter(
+        (i) => i.received_quantity > 0
+      );
+
+      if (itemsToSubmit.length === 0) {
+        toast.warn("Please enter a quantity greater than 0 for at least one item.");
+        setLoading(false);
+        return;
+      }
+
       const payload = {
         tender_id: tenderId,
-        item_description: data.item_description,
         requestId: data.requestId,
-        unit: data.unit,
-        quantity: data.quantity,
-        received_quantity: data.received_quantity,
-        pending_quantity: data.pending_quantity,
-        ordered_date: data.ordered_date,
-        total_amount: data.total_amount,
+        invoice_no: data.invoice_no,
+        site_name: data.site_name,
+        received_items: itemsToSubmit,
       };
 
-      await axios.post(`${API}/material/addreceived`, payload);
-      if(onSuccess) onSuccess();
+      // 2. Call Primary API: Add Material Received
+      await axios.post(`${API}/material/addMaterialReceived`, payload);
       toast.success("Material received successfully!");
-      reset();
+
+      // 3. Check if PO is Fully Completed
+      // Logic: If for EVERY item, (Balance - Received_Now) <= 0, then PO is done.
+      const isPOFullyReceived = data.received_items.every((item) => {
+        const currentBalance = Number(item.balance_quantity || 0);
+        const receivingNow = Number(item.received_quantity || 0);
+        
+        // If balance was already 0, or we just received the full remainder
+        return currentBalance - receivingNow <= 0;
+      });
+
+      // 4. If Complete, Call Pass PO API
+      if (isPOFullyReceived) {
+        try {
+          await axios.put(`${API}/purchaseorderrequest/api/pass_po/${data.requestId}`, {
+            status: "Completed",
+          });
+          toast.info(`PO ${data.requestId} automatically marked as Completed.`);
+        } catch (poError) {
+          console.error("Auto-close PO failed", poError);
+          // We don't block the UI here since material entry was successful
+        }
+      }
+
+      if (onSuccess) onSuccess();
       onclose();
     } catch (err) {
-      console.error("Error saving material:", err);
-      toast.error(err.response?.data?.error || "Failed to save material");
+      console.error(err);
+      toast.error(err.response?.data?.error || "Failed to receive material");
+    } finally {
+      setLoading(false);
     }
   };
-
-  // Compute pending dynamically for display
-  const totalQty = selectedMaterial?.quantity || 0;
-  const alreadyReceived = selectedMaterial?.received_quantity || 0;
-  const pending = Math.max(
-    totalQty - (alreadyReceived + Number(received_quantity || 0)),
-    0
-  );
 
   return (
     <Modal
-      title="Add Material Received"
+      title="Inward Material Entry (GRN)"
       onclose={onclose}
-      widthClassName="lg:w-[500px] md:w-[500px] w-[96]"
+      widthClassName="w-full max-w-5xl"
       child={
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="px-6 py-6">
-            <div className="lg:space-y-4 space-y-3">
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-white">
-                  Request ID
-                </label>
-                <select
-                  {...register("requestId")}
-                  onChange={handleRequestSelect}
-                  className="w-full border border-gray-300 rounded p-2 mt-1 bg-layout-dark"
-                >
-                  <option value="">Select Request</option>
-                {requests.map((r, i) => (
-                  <option key={i} value={r.requestId}>
-                    {r.requestId}
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6 font-roboto-flex">
+          
+          {/* --- Header Inputs --- */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+            {/* Purchase Order Selection */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                Select Purchase Order <span className="text-red-500">*</span>
+              </label>
+              <select
+                {...register("requestId")}
+                onChange={handleRequestSelect}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-400"
+              >
+                <option value="">-- Select PO --</option>
+                {purchaseRequests.map((r) => (
+                  <option key={r._id} value={r.requestId}>
+                    {r.requestId} - {r.title}
                   </option>
                 ))}
-                </select>
-                {errors.requestId && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {errors.requestId.message}
-                  </p>
-                )}
-              </div>
-              {/* Material Dropdown */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-white">
-                  Material
-                </label>
-                <select
-                  {...register("item_description")}
-                  onChange={handleMaterialSelect}
-                  className="w-full border border-gray-300 rounded p-2 mt-1 bg-layout-dark"
-                >
-                  <option value="">Select Material</option>
-                  {materials.map((mat, index) => (
-                    <option
-                      key={mat._id || `${mat.item_description}-${index}`}
-                      value={mat.item_description}
-                    >
-                      {mat.item_description}
-                    </option>
-                  ))}
-                </select>
-                {errors.item_description && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {errors.item_description.message}
-                  </p>
-                )}
-              </div>
+              </select>
+              <p className="text-xs text-red-500 min-h-[16px]">{errors.requestId?.message}</p>
+            </div>
 
-              {/* Autofilled fields */}
-              <InputField
-                label="Unit"
-                type="text"
-                name="unit"
-                register={register}
-                errors={errors}
-                readOnly
+            {/* Site Name */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                Site Name
+              </label>
+              <input
+                {...register("site_name")}
+                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                placeholder="Enter Site Name"
               />
-              <InputField
-                label="BOQ Qty"
-                type="number"
-                name="quantity"
-                register={register}
-                errors={errors}
-                readOnly
-              />
-              {/* <InputField
-                label="Amount"
-                type="number"
-                name="total_amount"
-                register={register}
-                errors={errors}
-                readOnly
-              /> */}
+            </div>
 
-              {/* Editable fields */}
-              <InputField
-                label="Received Qty"
-                type="number"
-                name="received_quantity"
-                register={register}
-                errors={errors}
-                placeholder="Enter Received Qty"
+            {/* Invoice No */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                Invoice / Challan No <span className="text-red-500">*</span>
+              </label>
+              <input
+                {...register("invoice_no")}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                placeholder="Enter Invoice No"
               />
-              <InputField
-                label="Pending"
-                type="number"
-                name="pending_quantity"
-                register={register}
-                errors={errors}
-                value={pending}
-                readOnly
-              />
-              <InputField
-                label="Received Date"
-                type="date"
-                name="ordered_date"
-                register={register}
-                errors={errors}
-              />
+              <p className="text-xs text-red-500 min-h-[16px]">{errors.invoice_no?.message}</p>
             </div>
           </div>
 
-          <div className="mx-5 text-xs flex lg:justify-end md:justify-center justify-center gap-2 mb-4">
+          {/* --- Dynamic Table --- */}
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 mb-6">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 text-xs uppercase font-bold text-gray-500 dark:bg-gray-700/50 dark:text-gray-300">
+                  <tr>
+                    <th className="px-4 py-3 min-w-[200px]">Material</th>
+                    <th className="px-4 py-3 min-w-[100px]">Unit</th>
+                    <th className="px-4 py-3 text-center">PO Qty</th>
+                    <th className="px-4 py-3 text-center">Prev. Recv</th>
+                    <th className="px-4 py-3 text-center text-blue-600 dark:text-blue-400">Balance</th>
+                    <th className="px-4 py-3 w-36">Received Now</th>
+                    {/* <th className="px-4 py-3 min-w-[140px]">Date</th> */}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {fields.map((item, index) => (
+                    <tr 
+                      key={item.id} 
+                      className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                    >
+                      {/* Material Name */}
+                      <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">
+                        {item.item_description}
+                        <input type="hidden" {...register(`received_items.${index}.item_description`)} />
+                      </td>
+
+                      {/* Unit */}
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                          {item.unit}
+                        </span>
+                      </td>
+                      
+                      {/* PO Qty (Read Only) */}
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-gray-600 dark:text-gray-400 font-medium">
+                          {item.po_quantity}
+                        </span>
+                      </td>
+
+                      {/* Prev Received (Read Only) */}
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-gray-500 dark:text-gray-500">
+                          {item.prev_received}
+                        </span>
+                      </td>
+
+                      {/* Balance (Read Only) */}
+                      <td className="px-4 py-3 text-center">
+                        <div className="mx-auto w-fit rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                          {item.balance_quantity}
+                        </div>
+                        <input type="hidden" {...register(`received_items.${index}.balance_quantity`)} />
+                      </td>
+
+                      {/* Received Now Input */}
+                      <td className="px-4 py-3">
+                        <div className="relative">
+                          <input
+                            type="number"
+                            {...register(`received_items.${index}.received_quantity`)}
+                            className={`w-full rounded-md border px-2 py-1.5 text-sm shadow-sm transition-all focus:outline-none focus:ring-2 ${
+                              errors.received_items?.[index]?.received_quantity 
+                                ? "border-red-300 focus:border-red-500 focus:ring-red-200 bg-red-50 text-red-900 dark:bg-red-900/10 dark:text-red-200" 
+                                : "border-gray-300 focus:border-blue-500 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:ring-blue-900/30"
+                            }`}
+                            placeholder="0"
+                            disabled={item.balance_quantity === 0}
+                          />
+                        </div>
+                        {errors.received_items?.[index]?.received_quantity && (
+                          <p className="absolute text-[10px] text-red-500 mt-0.5 font-medium">
+                             {errors.received_items[index].received_quantity.message || "Invalid"}
+                          </p>
+                        )}
+                      </td>
+
+                      {/* Date Input */}
+                      {/* <td className="px-4 py-3">
+                        <input
+                          type="date"
+                          {...register(`received_items.${index}.ordered_date`)}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:ring-blue-900/30"
+                          disabled={item.balance_quantity === 0}
+                        />
+                      </td> */}
+                    </tr>
+                  ))}
+
+                  {/* Empty State */}
+                  {fields.length === 0 && (
+                    <tr>
+                      <td colSpan="7">
+                        <div className="flex flex-col items-center justify-center py-10 text-gray-400 dark:text-gray-500">
+                          <Box size={40} strokeWidth={1.5} className="mb-2 opacity-50" />
+                          <p className="text-sm font-medium">
+                            {loading ? "Fetching material details..." : "Select a Purchase Order to start receiving materials"}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* --- Footer Actions --- */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
             <button
               type="button"
               onClick={onclose}
-              className="cursor-pointer border dark:border-white dark:text-white border-darkest-blue text-darkest-blue px-6 py-2 rounded"
+              className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:ring-gray-700 transition-all"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="cursor-pointer px-6 bg-darkest-blue text-white rounded"
+              disabled={loading || fields.length === 0}
+              className="rounded-lg bg-slate-700 px-5 py-2.5 text-sm font-medium text-white shadow-md hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:shadow-none disabled:cursor-not-allowed dark:disabled:bg-gray-700 dark:focus:ring-offset-gray-900 transition-all"
             >
-              Save
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </span>
+              ) : (
+                "Save Material Entry"
+              )}
             </button>
           </div>
         </form>
