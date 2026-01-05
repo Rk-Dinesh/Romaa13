@@ -13,52 +13,19 @@ const tabs = [
     id: "1",
     label: "Work Order Request",
     component: (reloadTrigger) => <WORequest reloadTrigger={reloadTrigger} />,
-    buttons: [
-      {
-        label: "Create Request",
-        icon: <LuFileCheck size={23} />,
-        className: "bg-darkest-blue text-white",
-      },
-      {
-        label: "Export",
-        icon: <TbFileExport size={23} />,
-        className:
-          " dark:bg-layout-dark  dark:text-white bg-white text-darkest-blue",
-      },
-      {
-        label: "Filter",
-        icon: <TbFilter size={23} />,
-        className:
-          " dark:bg-layout-dark  dark:text-white  bg-white text-darkest-blue",
-      },
-    ],
+    buttons: [],
   },
   {
     id: "2",
     label: "Work Order Issuance",
     component: () => <WorkOrderIssuance />,
-    buttons: [
-      {
-        label: "Export",
-        icon: <TbFileExport size={23} />,
-        className:
-          "  dark:bg-layout-dark  dark:text-white bg-white text-darkest-blue",
-      },
-      {
-        label: "Filter",
-        icon: <TbFilter size={23} />,
-        className:
-          " dark:bg-layout-dark  dark:text-white bg-white text-darkest-blue",
-      },
-    ],
+    buttons: [],
   },
 ];
 
 const WoIssuance = () => {
   const navigate = useNavigate();
   const [reloadWORequest, setReloadWORequest] = useState(0);
-
-  const [openModal, setOpenModal] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const defaultTab = tabs[0].id;
   const activeTab = searchParams.get("tab") || defaultTab;
@@ -69,16 +36,6 @@ const WoIssuance = () => {
 
   const activeTabData = tabs.find((tab) => tab.id === activeTab);
   const buttonsWithHandlers = activeTabData.buttons.map((button) => {
-    const modalMap = {
-      "Create Request": "createrequest",
-    };
-
-    if (modalMap[button.label]) {
-      return {
-        ...button,
-        onClick: () => setOpenModal(modalMap[button.label]),
-      };
-    }
     return button;
   });
 
@@ -96,19 +53,19 @@ const WoIssuance = () => {
               <button
                 key={index}
                 className={`cursor-pointer w-fit text-sm flex items-center gap-2 px-4 py-2 rounded-md ${button.className}`}
-                onClick={button.onClick}
+                onClick={button.  onClick}
               >
                 {button.icon} {button.label}
               </button>
             ))}
           </div>
         </div>
-        <div className=" font-roboto-flex  cursor-pointer flex justify-between items-center ">
+        <div className=" font-roboto-flex  cursor-pointer flex justify-between items-center  ">
           <div className="flex flex-wrap gap-2 py-2.5 ">
             {tabs.map(({ id, label }) => (
               <p
                 key={id}
-                className={`flex gap-2 items-center px-4 py-2.5 font-medium rounded-lg text-sm  whitespace-nowrap ${
+                className={`flex gap-2 items-center px-4 py-2 font-medium rounded-lg text-sm  whitespace-nowrap ${
                   activeTab === id
                     ? "bg-darkest-blue text-white"
                     : "dark:bg-layout-dark dark:text-white bg-white text-darkest-blue "
@@ -120,22 +77,12 @@ const WoIssuance = () => {
             ))}
           </div>
         </div>
-        <div className=" h-full overflow-y-auto  no-scrollbar">
+        <div className=" h-full overflow-y-auto  no-scrollbar ">
           {activeTabData?.component(
             activeTab === "1" ? reloadWORequest : undefined
           )}
         </div>
 
-        {openModal === "createrequest" && (
-          <CreateRequest
-            onclose={() => setOpenModal(null)}
-            onSuccess={() => {
-              // Trigger reload in WORequest
-              setReloadWORequest((prev) => prev + 1);
-              setOpenModal(null);
-            }}
-          />
-        )}
       </div>
     </>
   );
